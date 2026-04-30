@@ -1,0 +1,3916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vibecast</title>
+  <link rel="icon" type="image/png" href="/client/vibecast-logo.png" />
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #0b0b0b;
+      --bg-elevated: #121212;
+      --panel: #181818;
+      --panel-soft: #202020;
+      --panel-strong: #272727;
+      --border: #2f2f2f;
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --accent: #ff2d55;
+      --accent-soft: rgba(255, 45, 85, 0.18);
+      --accent-gold: #f59e0b;
+      --glow: rgba(255, 45, 85, 0.22);
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.34);
+      --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.25);
+      --radius-lg: 26px;
+      --radius-md: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top left, rgba(255, 45, 85, 0.18), transparent 24%),
+        radial-gradient(circle at top right, rgba(82, 82, 91, 0.16), transparent 22%),
+        radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.07), transparent 30%),
+        linear-gradient(180deg, #111111 0%, #090909 100%);
+      color: var(--text);
+      font-family: "Segoe UI Variable", "Aptos", "Trebuchet MS", sans-serif;
+    }
+
+    body[data-theme="light"] {
+      --bg: #f5f5f7;
+      --bg-elevated: #ffffff;
+      --panel: #ffffff;
+      --panel-soft: #f2f2f3;
+      --panel-strong: #e8e8ea;
+      --border: #d7d7db;
+      --text: #151515;
+      --muted: #5f6470;
+      --accent-soft: rgba(255, 45, 85, 0.12);
+      --shadow: 0 24px 80px rgba(15, 23, 42, 0.12);
+      --shadow-soft: 0 16px 40px rgba(15, 23, 42, 0.1);
+      background:
+        radial-gradient(circle at top left, rgba(255, 45, 85, 0.08), transparent 24%),
+        radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 22%),
+        radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.05), transparent 30%),
+        linear-gradient(180deg, #fcfcfd 0%, #eff1f5 100%);
+      color: var(--text);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(circle at center, black 35%, transparent 90%);
+      opacity: 0.28;
+      z-index: 0;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 240px minmax(0, 1fr);
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0));
+      position: relative;
+      z-index: 1;
+    }
+
+    .app-shell.watch-mode {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-shell.watch-mode .sidebar {
+      display: none;
+    }
+
+    .app-shell.watch-mode .chip-row {
+      display: none;
+    }
+
+    .app-shell.watch-mode .main {
+      padding: 0 0 18px;
+    }
+
+    .app-shell.watch-mode.sidebar-overlay-open .sidebar {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 300px;
+      height: 100vh;
+      z-index: 45;
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+      animation: sidebarSlideIn 0.18s ease;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 10px 8px 18px;
+      background: linear-gradient(180deg, rgba(16,16,16,0.96), rgba(10,10,10,0.96));
+      border-right: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(22px);
+      overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .sidebar-scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.48);
+      backdrop-filter: blur(2px);
+      z-index: 40;
+    }
+
+    .sidebar-scrim[hidden] {
+      display: none;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px 14px;
+      margin-bottom: 4px;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      overflow: hidden;
+      flex-shrink: 0;
+      background: transparent;
+    }
+
+    .brand-mark img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+      object-position: center;
+      transform: none;
+    }
+
+    .brand-copy strong {
+      display: block;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-shadow: 0 0 24px rgba(255, 255, 255, 0.06);
+    }
+
+    .brand-copy span {
+      color: var(--muted);
+      font-size: 11px;
+      display: none;
+    }
+
+    .sidebar-group {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .nav-button {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 12px 14px;
+      border-radius: 14px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 14px;
+      transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .nav-button:hover,
+    .nav-button.active {
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      transform: translateX(3px);
+    }
+
+    .nav-icon {
+      width: 26px;
+      text-align: center;
+      color: #f3f4f6;
+      font-size: 18px;
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 10px 0 14px;
+    }
+
+    .sidebar-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 16px;
+      color: #f4f4f5;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .creator-list {
+      display: grid;
+      gap: 2px;
+      margin-top: 4px;
+    }
+
+    .creator-chip {
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 14px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .creator-chip:hover {
+      background: rgba(255,255,255,0.05);
+    }
+
+    .creator-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+    }
+
+    .creator-copy {
+      min-width: 0;
+    }
+
+    .creator-copy strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .creator-chip span {
+      color: var(--muted);
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .main {
+      padding: 0 0 28px;
+    }
+
+    .topbar {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0;
+      padding: 10px 18px;
+      position: sticky;
+      top: 0;
+      background: linear-gradient(180deg, rgba(14,14,14,0.96), rgba(14,14,14,0.82));
+      backdrop-filter: blur(22px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      z-index: 5;
+    }
+
+    .topbar-left,
+    .topbar-center,
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-center {
+      flex: 1;
+      justify-content: center;
+    }
+
+    .topbar-brand {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      padding: 0;
+      min-width: 0;
+    }
+
+    .topbar-brand img {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .topbar-brand strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .app-shell.watch-mode .topbar-brand {
+      display: inline-flex;
+    }
+
+    .menu-toggle,
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      border: 0;
+      background: transparent;
+      color: #fff;
+      font-size: 20px;
+      display: grid;
+      place-items: center;
+    }
+
+    .icon-button svg,
+    .search-submit svg,
+    .menu-toggle svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .profile-button {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      border: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+      flex-shrink: 0;
+    }
+
+    .profile-button img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    .menu-toggle:hover,
+    .icon-button:hover {
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-1px);
+    }
+
+    .search-wrap {
+      flex: 1;
+      max-width: 920px;
+      display: flex;
+      align-items: center;
+      background: linear-gradient(180deg, rgba(22,22,22,0.95), rgba(16,16,16,0.95));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .search-wrap input {
+      flex: 1;
+      background: transparent;
+      border: 0;
+      outline: none;
+      color: var(--text);
+      padding: 0 18px;
+      font-size: 20px;
+      height: 52px;
+    }
+
+    .search-submit {
+      width: 64px;
+      height: 52px;
+      border: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      color: #fff;
+      display: grid;
+      place-items: center;
+    }
+
+    .user-menu {
+      position: absolute;
+      top: 72px;
+      right: 18px;
+      width: 360px;
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+      background: #282828;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      padding: 14px 0;
+      z-index: 20;
+      overflow-x: visible;
+    }
+
+    .user-menu[hidden] {
+      display: none;
+    }
+
+    .notifications-panel {
+      position: absolute;
+      top: 72px;
+      right: 72px;
+      width: 700px;
+      max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 96px);
+      overflow-y: auto;
+      background: #282828;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      z-index: 19;
+    }
+
+    .notifications-panel[hidden] {
+      display: none;
+    }
+
+    .notifications-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 22px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .notifications-header h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .notifications-list {
+      display: grid;
+    }
+
+    .notification-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #f5f5f5;
+      text-align: left;
+      display: grid;
+      grid-template-columns: 52px minmax(0, 1fr) 128px;
+      gap: 16px;
+      padding: 18px 22px;
+      align-items: start;
+    }
+
+    .notification-item:hover {
+      background: #343434;
+    }
+
+    .notification-avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      overflow: hidden;
+    }
+
+    .notification-title {
+      font-size: 15px;
+      line-height: 1.45;
+      color: #f5f5f5;
+      margin-bottom: 10px;
+    }
+
+    .notification-time {
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+
+    .notification-thumb {
+      width: 128px;
+      aspect-ratio: 16 / 9;
+      border-radius: 12px;
+      object-fit: cover;
+      background: #1f1f1f;
+      display: block;
+    }
+
+    .notifications-empty {
+      padding: 24px 22px 30px;
+      color: #a1a1aa;
+    }
+
+    .user-menu-header {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 14px;
+      padding: 8px 22px 18px;
+    }
+
+    .user-menu-avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .user-menu-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .user-menu-name {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .user-menu-handle {
+      color: #d4d4d8;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .user-menu-link {
+      color: #60a5fa;
+      font-size: 15px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      text-align: left;
+    }
+
+    .user-menu-divider {
+      height: 1px;
+      margin: 14px 0;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .user-menu-list {
+      display: grid;
+    }
+
+    .user-menu-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      color: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 14px 22px;
+      text-align: left;
+      font-size: 15px;
+    }
+
+    .user-menu-item:hover {
+      background: #343434;
+    }
+
+    .user-menu-item-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .user-menu-item-icon {
+      width: 24px;
+      text-align: center;
+      font-size: 18px;
+      color: #f4f4f5;
+    }
+
+    .user-menu-item-arrow {
+      color: #d4d4d8;
+      font-size: 18px;
+    }
+
+    .user-menu-submenu {
+      position: fixed;
+      width: 320px;
+      max-height: min(520px, calc(100vh - 32px));
+      background: #282828;
+      border-radius: 22px;
+      padding: 14px 0;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      z-index: 30;
+      overflow-y: auto;
+    }
+
+    .user-menu-submenu[hidden] {
+      display: none;
+    }
+
+    .user-menu-submenu-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 22px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      margin-bottom: 10px;
+    }
+
+    .user-menu-back {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 0;
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+    }
+
+    .user-menu-submenu-title {
+      font-size: 17px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 900px) {
+      .user-menu-submenu {
+        width: min(320px, calc(100vw - 24px));
+      }
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .pill-button,
+    .upload-submit {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 18px;
+      font-weight: 700;
+    }
+
+    .pill-button {
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+      color: var(--text);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .pill-button.accent,
+    .upload-submit {
+      background: linear-gradient(135deg, #ff1744, #ff4d6d);
+      color: #fff;
+      box-shadow: 0 16px 30px rgba(255, 45, 85, 0.24);
+    }
+
+    .pill-button:hover,
+    .upload-submit:hover,
+    .watch-pill:hover,
+    .watch-icon-pill:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+    }
+
+    .content {
+      display: grid;
+      gap: 18px;
+      padding: 14px 24px 0;
+      animation: pageFadeIn 0.45s ease;
+    }
+
+    .panel,
+    .video-card,
+    .comment-card,
+    .stat-card,
+    .upload-card {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .panel,
+    .upload-card {
+      border-radius: var(--radius-lg);
+    }
+
+    .hero-copy h1,
+    .panel h1,
+    .panel h2,
+    .upload-card h1,
+    .upload-card h2 {
+      margin: 0 0 10px;
+    }
+
+    .hero-copy p,
+    .muted {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .inline-actions,
+    .card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #ffd1dc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding: 12px 24px 8px;
+      position: sticky;
+      top: 64px;
+      z-index: 4;
+      background: rgba(15, 15, 15, 0.98);
+    }
+
+    .chip-row::-webkit-scrollbar {
+      display: none;
+    }
+
+    .topic-chip {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.08);
+      color: #f4f4f5;
+      white-space: nowrap;
+      font-weight: 600;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .topic-chip.active {
+      background: linear-gradient(135deg, #f6f6f7, #d9d9dd);
+      color: #111;
+      box-shadow: 0 10px 26px rgba(255,255,255,0.08);
+    }
+
+    .topic-chip:hover {
+      transform: translateY(-1px);
+    }
+
+    .video-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 30px 18px;
+    }
+
+    .video-card {
+      border-radius: 22px;
+      overflow: hidden;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: var(--shadow-soft);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    }
+
+    .thumbnail {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #232323;
+      object-fit: cover;
+      display: block;
+      border-radius: 20px 20px 0 0;
+      transition: transform 0.45s ease, filter 0.3s ease;
+    }
+
+    .video-body {
+      padding: 12px 0 0;
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .channel-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #3b82f6, #0ea5e9);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: grid;
+      place-items: center;
+      margin-top: 4px;
+    }
+
+    .video-copy h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .video-card {
+      cursor: pointer;
+    }
+
+    .video-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 28px 60px rgba(0, 0, 0, 0.34);
+      border-color: rgba(255,255,255,0.1);
+    }
+
+    .video-card:hover .thumbnail {
+      transform: scale(1.03);
+      filter: saturate(1.05) contrast(1.04);
+    }
+
+    .video-meta {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .video-description {
+      display: none;
+    }
+
+    .card-actions button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: var(--panel-strong);
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .card-actions button.primary {
+      background: #fff;
+      color: #111;
+    }
+
+    .panel {
+      padding: 0;
+    }
+
+    .watch-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.9fr) minmax(320px, 0.9fr);
+      gap: 20px;
+    }
+
+    .watch-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1.82fr) minmax(320px, 0.78fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .watch-main,
+    .watch-rail {
+      min-width: 0;
+    }
+
+    .player-stage {
+      background: #000;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      position: relative;
+    }
+
+    .player-stage video {
+      width: 100%;
+      display: block;
+      background: #000;
+      aspect-ratio: 16 / 9;
+    }
+
+    .player-audio-toggle {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 3;
+      border: 0;
+      border-radius: 999px;
+      min-width: 132px;
+      height: 56px;
+      padding: 0 18px;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(183, 148, 24, 0.88);
+      color: #fff;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(12px);
+    }
+
+    .player-audio-toggle:hover {
+      transform: translateY(-1px);
+    }
+
+    .player-audio-toggle svg {
+      width: 26px;
+      height: 26px;
+      flex-shrink: 0;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .player-audio-toggle-track {
+      flex: 1;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .player-audio-toggle-thumb {
+      position: absolute;
+      top: 50%;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: #fff;
+      transform: translateY(-50%);
+      transition: left 0.2s ease;
+      left: calc(100% - 22px);
+    }
+
+    .player-audio-toggle.muted .player-audio-toggle-thumb {
+      left: 0;
+    }
+
+    .watch-details {
+      margin-top: 14px;
+    }
+
+    .watch-title {
+      margin: 0 0 12px;
+      font-size: 30px;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      text-wrap: balance;
+    }
+
+    .watch-metadata {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+
+    .watch-channel-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .watch-channel {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .watch-channel-avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .watch-channel-copy {
+      min-width: 0;
+    }
+
+    .watch-channel-copy strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.2;
+      margin-bottom: 4px;
+    }
+
+    .watch-channel-copy span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .watch-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .watch-action-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .watch-pill,
+    .watch-icon-pill {
+      border: 0;
+      border-radius: 999px;
+      background: #272727;
+      color: var(--text);
+      min-height: 42px;
+      font-weight: 700;
+    }
+
+    .watch-pill {
+      padding: 0 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .watch-icon-pill {
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .watch-pill.primary {
+      background: #fff;
+      color: #111;
+    }
+
+    .watch-pill.like-button {
+      background: #1f1f1f;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .watch-pill.like-button.liked {
+      background: rgba(255, 45, 85, 0.16);
+      color: #ffd5df;
+      border-color: rgba(255, 45, 85, 0.4);
+      cursor: pointer;
+    }
+
+    .watch-pill svg,
+    .watch-icon-pill svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .watch-description-card,
+    .watch-comments-card {
+      margin-top: 14px;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.025));
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .watch-description-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    .watch-rail-header {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      margin-bottom: 6px;
+    }
+
+    .watch-rail-header::-webkit-scrollbar {
+      display: none;
+    }
+
+    .watch-filter-chip {
+      border: 0;
+      border-radius: 12px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,0.08);
+      color: #f4f4f5;
+      white-space: nowrap;
+      font-weight: 700;
+      flex-shrink: 0;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .watch-filter-chip.active {
+      background: linear-gradient(135deg, #f6f6f7, #dddddf);
+      color: #111;
+    }
+
+    .watch-filter-chip:hover {
+      transform: translateY(-1px);
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 14px;
+    }
+
+    .stat-card {
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    .stat-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .stat-card strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 28px;
+    }
+
+    .comment-card {
+      border-radius: 18px;
+      padding: 16px;
+      margin-top: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .comment-card p {
+      margin-bottom: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .form-grid label {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .form-grid input,
+    .form-grid textarea {
+      width: 100%;
+      background: #101010;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 13px 14px;
+      outline: none;
+    }
+
+    .form-grid textarea {
+      min-height: 130px;
+      resize: vertical;
+    }
+
+    .upload-card {
+      padding: 28px;
+      max-width: 860px;
+    }
+
+    .status {
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 14px;
+    }
+
+    .empty-state {
+      padding: 26px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+      border: 1px dashed rgba(255, 255, 255, 0.12);
+      color: var(--muted);
+    }
+
+    .mini-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini-video {
+      display: grid;
+      grid-template-columns: 168px minmax(0, 1fr) 20px;
+      gap: 10px;
+      border: 0;
+      background: rgba(255,255,255,0.02);
+      color: var(--text);
+      text-align: left;
+      padding: 8px;
+      align-items: start;
+      border-radius: 16px;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .mini-video img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 12px;
+      background: #1f1f1f;
+    }
+
+    .mini-video:hover {
+      transform: translateX(4px);
+      background: rgba(255,255,255,0.05);
+    }
+
+    .mini-video strong {
+      display: block;
+      margin-bottom: 6px;
+      line-height: 1.32;
+      font-size: 15px;
+    }
+
+    .mini-video-copy {
+      min-width: 0;
+    }
+
+    .mini-video-copy .muted {
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .mini-video-more {
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1;
+      padding-top: 4px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-title p {
+      margin: 0;
+    }
+
+    @keyframes sidebarSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes pageFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 1300px) {
+      .video-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .main {
+        padding-top: 0;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .watch-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .watch-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px 14px;
+      }
+
+      .topbar-left,
+      .topbar-center,
+      .topbar-right {
+        justify-content: space-between;
+      }
+
+      .chip-row {
+        top: 148px;
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .content {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .video-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .watch-title {
+        font-size: 28px;
+      }
+
+      .mini-video {
+        grid-template-columns: 144px minmax(0, 1fr);
+      }
+
+      .mini-video-more {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebarScrim" class="sidebar-scrim" hidden></div>
+    <aside class="sidebar">
+      <div class="brand" id="brandHomeButton" role="button" tabindex="0" aria-label="Go to homepage">
+        <div class="brand-mark">
+          <img src="/client/vibecast-logo.png" alt="Vibecast logo" />
+        </div>
+        <div class="brand-copy">
+          <strong>Vibecast</strong>
+          <span></span>
+        </div>
+      </div>
+
+      <div class="sidebar-group">
+        <button class="nav-button" data-nav-view="home">
+          <span class="nav-icon">H</span>
+          <span>Home</span>
+        </button>
+        <button class="nav-button" data-nav-view="shorts">
+          <span class="nav-icon">S</span>
+          <span>Shorts</span>
+        </button>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-heading">
+        <span>Subscriptions</span>
+        <span>&gt;</span>
+      </div>
+      <div id="creatorRail" class="creator-list"></div>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-group">
+        <button class="nav-button" data-nav-view="creator">
+          <span class="nav-icon">Y</span>
+          <span>You</span>
+        </button>
+        <button class="nav-button" data-nav-view="upload">
+          <span class="nav-icon">+</span>
+          <span>Your channel</span>
+        </button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="menu-toggle" type="button" aria-label="Menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h16"></path>
+              <path d="M4 12h16"></path>
+              <path d="M4 17h16"></path>
+            </svg>
+          </button>
+          <button id="topbarHomeButton" class="topbar-brand" type="button" aria-label="Go to homepage">
+            <img src="/client/vibecast-logo.png" alt="Vibecast logo" />
+            <strong>Vibecast</strong>
+          </button>
+        </div>
+
+        <div class="topbar-center">
+          <div class="search-wrap">
+            <input id="searchInput" type="search" placeholder="Search" />
+            <button id="searchButton" class="search-submit" type="button" aria-label="Search">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6"></circle>
+                <path d="M20 20l-4.2-4.2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <button id="topUploadButton" class="pill-button" type="button">+ Create</button>
+          <button id="surpriseButton" class="icon-button" type="button" aria-label="Notifications">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7"></path>
+              <path d="M10 20a2 2 0 0 0 4 0"></path>
+            </svg>
+          </button>
+          <button id="profileButton" class="profile-button" type="button" aria-label="Open account menu">
+            <img src="/client/vibecast-logo.png" alt="Profile" />
+          </button>
+        </div>
+      </div>
+
+      <div id="userMenu" class="user-menu" hidden>
+        <div class="user-menu-header">
+          <div class="user-menu-avatar">
+            <img src="/client/vibecast-logo.png" alt="Profile" />
+          </div>
+          <div>
+            <div id="userMenuAccountName" class="user-menu-name">Vinaynagasai</div>
+            <div id="userMenuAccountHandle" class="user-menu-handle">@VinayVallabhaneni1711</div>
+            <button id="viewChannelButton" class="user-menu-link" type="button">View your channel</button>
+          </div>
+        </div>
+
+        <div class="user-menu-divider"></div>
+
+        <div class="user-menu-list">
+          <button id="userMenuGoogleAccount" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">G</span>
+              <span>Google Account</span>
+            </span>
+          </button>
+          <button id="userMenuSwitchAccount" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">A</span>
+              <span>Switch account</span>
+            </span>
+            <span class="user-menu-item-arrow">&gt;</span>
+          </button>
+          <button id="userMenuSignOut" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">X</span>
+              <span>Sign out</span>
+            </span>
+          </button>
+        </div>
+
+        <div class="user-menu-divider"></div>
+
+        <div class="user-menu-list">
+          <button id="userMenuStudio" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">S</span>
+              <span>Vibecast Studio</span>
+            </span>
+          </button>
+          <button id="userMenuUpload" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">+</span>
+              <span>Upload video</span>
+            </span>
+          </button>
+          <button id="userMenuPurchases" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">$</span>
+              <span>Purchases and memberships</span>
+            </span>
+          </button>
+        </div>
+
+        <div class="user-menu-divider"></div>
+
+        <div class="user-menu-list">
+          <button id="userMenuData" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">D</span>
+              <span>Your data in Vibecast</span>
+            </span>
+          </button>
+          <button id="userMenuLanguage" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">L</span>
+              <span id="userMenuLanguageLabel">Display language: English</span>
+            </span>
+            <span class="user-menu-item-arrow">&gt;</span>
+          </button>
+          <button id="userMenuLocation" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">O</span>
+              <span id="userMenuLocationLabel">Location: India</span>
+            </span>
+            <span class="user-menu-item-arrow">&gt;</span>
+          </button>
+          <button id="userMenuAppearance" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">T</span>
+              <span id="userMenuAppearanceLabel">Appearance: Dark</span>
+            </span>
+            <span class="user-menu-item-arrow">&gt;</span>
+          </button>
+          <button id="userMenuRestrictedMode" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">R</span>
+              <span id="userMenuRestrictedModeLabel">Restricted Mode: Off</span>
+            </span>
+            <span class="user-menu-item-arrow">&gt;</span>
+          </button>
+          <button id="userMenuShortcuts" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">K</span>
+              <span>Keyboard shortcuts</span>
+            </span>
+          </button>
+          <button id="userMenuHelp" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">?</span>
+              <span>Help</span>
+            </span>
+          </button>
+          <button id="userMenuFeedback" class="user-menu-item" type="button">
+            <span class="user-menu-item-left">
+              <span class="user-menu-item-icon">!</span>
+              <span>Send feedback</span>
+            </span>
+          </button>
+        </div>
+
+        <div id="userMenuSubmenu" class="user-menu-submenu" hidden></div>
+      </div>
+
+      <div id="notificationsPanel" class="notifications-panel" hidden>
+        <div class="notifications-header">
+          <h2>Notifications</h2>
+          <button class="icon-button" type="button" aria-label="Notification settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1 .2l-.2.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1l-.1-.2a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1-.2l.2-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.7z"></path>
+            </svg>
+          </button>
+        </div>
+        <div id="notificationsList" class="notifications-list"></div>
+      </div>
+
+      <div id="topicChips" class="chip-row"></div>
+      <div id="appStatus" class="status"></div>
+      <div id="appContent" class="content"></div>
+    </main>
+  </div>
+
+  <script>
+    const HLS_MIME_TYPE = "application/vnd.apple.mpegurl";
+    const appShell = document.querySelector(".app-shell");
+    const content = document.getElementById("appContent");
+    const appStatus = document.getElementById("appStatus");
+    const creatorRail = document.getElementById("creatorRail");
+    const topicChips = document.getElementById("topicChips");
+    const searchInput = document.getElementById("searchInput");
+    const searchButton = document.getElementById("searchButton");
+    const surpriseButton = document.getElementById("surpriseButton");
+    const topUploadButton = document.getElementById("topUploadButton");
+    const profileButton = document.getElementById("profileButton");
+    const menuToggleButton = document.querySelector(".menu-toggle");
+    const topbarHomeButton = document.getElementById("topbarHomeButton");
+    const sidebarScrim = document.getElementById("sidebarScrim");
+    const userMenu = document.getElementById("userMenu");
+    const notificationsPanel = document.getElementById("notificationsPanel");
+    const notificationsList = document.getElementById("notificationsList");
+    const viewChannelButton = document.getElementById("viewChannelButton");
+    const userMenuStudio = document.getElementById("userMenuStudio");
+    const userMenuUpload = document.getElementById("userMenuUpload");
+    const brandHomeButton = document.getElementById("brandHomeButton");
+    const userMenuGoogleAccount = document.getElementById("userMenuGoogleAccount");
+    const userMenuSwitchAccount = document.getElementById("userMenuSwitchAccount");
+    const userMenuSignOut = document.getElementById("userMenuSignOut");
+    const userMenuPurchases = document.getElementById("userMenuPurchases");
+    const userMenuData = document.getElementById("userMenuData");
+    const userMenuLanguage = document.getElementById("userMenuLanguage");
+    const userMenuLocation = document.getElementById("userMenuLocation");
+    const userMenuAppearance = document.getElementById("userMenuAppearance");
+    const userMenuRestrictedMode = document.getElementById("userMenuRestrictedMode");
+    const userMenuShortcuts = document.getElementById("userMenuShortcuts");
+    const userMenuHelp = document.getElementById("userMenuHelp");
+    const userMenuFeedback = document.getElementById("userMenuFeedback");
+    const userMenuLanguageLabel = document.getElementById("userMenuLanguageLabel");
+    const userMenuLocationLabel = document.getElementById("userMenuLocationLabel");
+    const userMenuAppearanceLabel = document.getElementById("userMenuAppearanceLabel");
+    const userMenuRestrictedModeLabel = document.getElementById("userMenuRestrictedModeLabel");
+    const userMenuSubmenu = document.getElementById("userMenuSubmenu");
+    const userMenuAccountName = document.getElementById("userMenuAccountName");
+    const userMenuAccountHandle = document.getElementById("userMenuAccountHandle");
+    let hlsInstance;
+    let refreshTimer = null;
+    let analyticsInterval = null;
+    let reportedWatchSeconds = 0;
+    let completionReported = false;
+    let currentVideoId = null;
+
+    const state = {
+      feed: [],
+      filteredFeed: [],
+      creators: [],
+      route: parseRoute()
+    };
+    const likedVideosStorageKey = "vibecast-liked-videos";
+    const preferencesStorageKey = "vibecast-preferences";
+    const defaultPreferences = {
+      displayLanguage: "English",
+      location: "India",
+      restrictedMode: "Off",
+      theme: "Dark",
+      accountName: "Vinaynagasai",
+      handle: "@VinayVallabhaneni1711"
+    };
+    const demoVideoTemplates = [
+      { title: "Night Drive Through Neon Streets", description: "A cinematic late-night ride with synth music, skyline reflections, and city energy.", accentA: "#7c3aed", accentB: "#2563eb", label: "Cinematic" },
+      { title: "Street Food Marathon In Old Delhi", description: "Tasting spicy chaat, smoky kebabs, and dessert stops across a packed evening route.", accentA: "#f97316", accentB: "#ef4444", label: "Food" },
+      { title: "Morning Coding Sprint Setup Tour", description: "Desk lighting, keyboard sounds, VS Code workflow, and a focused build session.", accentA: "#0ea5e9", accentB: "#14b8a6", label: "Tech" },
+      { title: "One Day Mini Travel Vlog", description: "Quick train clips, cafe moments, and handheld travel shots from a one-day escape.", accentA: "#22c55e", accentB: "#0ea5e9", label: "Travel" },
+      { title: "Unexpected Comeback In Ranked Match", description: "A close late-game turnaround with reactions, strategy shifts, and big final plays.", accentA: "#2563eb", accentB: "#1d4ed8", label: "Gaming" },
+      { title: "How I Edit Short Form Videos Faster", description: "Cuts, pacing, text overlays, and the workflow tricks that save editing time.", accentA: "#ec4899", accentB: "#8b5cf6", label: "Editing" },
+      { title: "Rainy Window Ambience For Deep Focus", description: "Soft rain, dim room lighting, and a loop built for study and concentrated work.", accentA: "#64748b", accentB: "#0f172a", label: "Ambient" },
+      { title: "Weekend Creator Studio Routine", description: "Planning uploads, checking comments, and building a repeatable publishing system.", accentA: "#06b6d4", accentB: "#3b82f6", label: "Creator" },
+      { title: "Budget Camera Test In Low Light", description: "A side-by-side look at detail, color, and stabilization after sunset.", accentA: "#f59e0b", accentB: "#f97316", label: "Gear" }
+    ];
+
+    function parseRoute() {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        view: params.get("view") || "home",
+        videoId: params.get("videoId") || "",
+        creatorName: params.get("creatorName") || "",
+        q: params.get("q") || ""
+      };
+    }
+
+    function setStatus(message) {
+      appStatus.textContent = message || "";
+    }
+
+    function getPreferences() {
+ 
+        return { ...defaultPreferences };
+      }
+    
+    function savePreferences(patch) {
+      const nextPreferences = {
+        ...getPreferences(),
+        ...patch
+      };
+      window.localStorage.setItem(preferencesStorageKey, JSON.stringify(nextPreferences));
+      return nextPreferences;
+    }
+
+    function applyTheme() {
+      const preferences = getPreferences();
+      const theme = preferences.theme === "Light" ? "light" : "dark";
+      document.body.setAttribute("data-theme", theme);
+    }
+
+    function renderUserMenuLabels() {
+      const preferences = getPreferences();
+      userMenuAccountName.textContent = preferences.accountName;
+      userMenuAccountHandle.textContent = preferences.handle;
+      userMenuLanguageLabel.textContent = `Display language: ${preferences.displayLanguage}`;
+      userMenuLocationLabel.textContent = `Location: ${preferences.location}`;
+      userMenuAppearanceLabel.textContent = `Appearance: ${preferences.theme}`;
+      userMenuRestrictedModeLabel.textContent = `Restricted Mode: ${preferences.restrictedMode}`;
+    }
+
+    function getLikedVideoIds() {
+      try {
+        const parsed = JSON.parse(window.localStorage.getItem(likedVideosStorageKey) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function hasLikedVideo(videoId) {
+      return getLikedVideoIds().includes(videoId);
+    }
+
+    function rememberLikedVideo(videoId) {
+      const likedIds = new Set(getLikedVideoIds());
+      likedIds.add(videoId);
+      window.localStorage.setItem(likedVideosStorageKey, JSON.stringify(Array.from(likedIds)));
+    }
+
+    function forgetLikedVideo(videoId) {
+      const likedIds = getLikedVideoIds().filter((id) => id !== videoId);
+      window.localStorage.setItem(likedVideosStorageKey, JSON.stringify(likedIds));
+    }
+
+    function getDefaultCreatorName() {
+      return state.route.creatorName || (state.creators[0] ? state.creators[0].creatorName : "Vinaynagasai");
+    }
+
+    function closeUserMenuSubmenu() {
+      userMenuSubmenu.hidden = true;
+      userMenuSubmenu.innerHTML = "";
+      userMenuSubmenu.scrollTop = 0;
+      userMenuSubmenu.style.top = "";
+      userMenuSubmenu.style.left = "";
+      userMenuSubmenu.style.right = "";
+      userMenuSubmenu.style.visibility = "";
+    }
+
+    function closeSidebarOverlay() {
+      appShell.classList.remove("sidebar-overlay-open");
+      sidebarScrim.hidden = true;
+    }
+
+    function toggleSidebarOverlay() {
+      if (state.route.view !== "watch") {
+        return;
+      }
+
+      const isOpen = appShell.classList.toggle("sidebar-overlay-open");
+      sidebarScrim.hidden = !isOpen;
+    }
+
+    function closeUserMenu() {
+      userMenu.hidden = true;
+      closeUserMenuSubmenu();
+      userMenu.scrollTop = 0;
+    }
+
+    function toggleUserMenu() {
+      notificationsPanel.hidden = true;
+      userMenu.hidden = !userMenu.hidden;
+      if (userMenu.hidden) {
+        closeUserMenuSubmenu();
+        userMenu.scrollTop = 0;
+      } else {
+        renderUserMenuLabels();
+        closeUserMenuSubmenu();
+        userMenu.scrollTop = 0;
+      }
+    }
+
+    function openUserMenuSubmenu(config, triggerButton) {
+      const preferences = getPreferences();
+      userMenuSubmenu.innerHTML = `
+        <div class="user-menu-submenu-header">
+          <button id="userMenuBackButton" class="user-menu-back" type="button" aria-label="Back">&larr;</button>
+          <div class="user-menu-submenu-title">${escapeHtml(config.title)}</div>
+        </div>
+        <div class="user-menu-list">
+          ${config.options
+            .map((option) => `
+              <button class="user-menu-item" type="button" data-submenu-option="${escapeHtml(option)}">
+                <span class="user-menu-item-left">
+                  <span class="user-menu-item-icon">${preferences[config.key] === option ? "•" : " "}</span>
+                  <span>${escapeHtml(option)}</span>
+                </span>
+              </button>
+            `)
+            .join("")}
+        </div>
+      `;
+      userMenuSubmenu.hidden = false;
+      userMenuSubmenu.scrollTop = 0;
+      userMenuSubmenu.style.visibility = "hidden";
+
+      const menuRect = userMenu.getBoundingClientRect();
+      const triggerRect = triggerButton.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const submenuWidth = userMenuSubmenu.offsetWidth || 320;
+      const submenuHeight = userMenuSubmenu.offsetHeight || 320;
+      const gap = 12;
+
+      let left = menuRect.right + gap;
+      if (left + submenuWidth > viewportWidth - 12) {
+        left = menuRect.left - submenuWidth - gap;
+      }
+      if (left < 12) {
+        left = Math.max(12, viewportWidth - submenuWidth - 12);
+      }
+
+      let top = triggerRect.top - 12;
+      if (top + submenuHeight > viewportHeight - 12) {
+        top = Math.max(12, viewportHeight - submenuHeight - 12);
+      }
+      if (top < 12) {
+        top = 12;
+      }
+
+      userMenuSubmenu.style.left = `${Math.round(left)}px`;
+      userMenuSubmenu.style.top = `${Math.round(top)}px`;
+      userMenuSubmenu.style.visibility = "visible";
+
+      document.getElementById("userMenuBackButton").addEventListener("click", () => {
+        closeUserMenuSubmenu();
+        userMenu.scrollTop = 0;
+      });
+
+      userMenuSubmenu.querySelectorAll("[data-submenu-option]").forEach((button) => {
+        button.addEventListener("click", () => {
+          savePreferences({ [config.key]: button.dataset.submenuOption });
+          applyTheme();
+          renderUserMenuLabels();
+          openUserMenuSubmenu(config, triggerButton);
+          setStatus(`${config.title} updated to ${button.dataset.submenuOption}.`);
+        });
+      });
+    }
+
+    function closeNotifications() {
+      notificationsPanel.hidden = true;
+    }
+
+    function buildNotifications() {
+      const items = [];
+
+      state.feed.slice(0, 8).forEach((video) => {
+        if ((video.commentsCount || 0) > 0) {
+          items.push({
+            type: "comment",
+            videoId: video.videoId,
+            creatorName: video.creatorName,
+            message: `${video.creatorName} received ${formatNumber(video.commentsCount)} comment${video.commentsCount === 1 ? "" : "s"} on "${video.title}"`,
+            createdAt: video.updatedAt || video.createdAt,
+            thumbnailUrl: video.thumbnailUrl
+          });
+        }
+
+        if ((video.likes || 0) > 0) {
+          items.push({
+            type: "like",
+            videoId: video.videoId,
+            creatorName: video.creatorName,
+            message: `"${video.title}" has ${formatNumber(video.likes)} like${video.likes === 1 ? "" : "s"} right now`,
+            createdAt: video.updatedAt || video.createdAt,
+            thumbnailUrl: video.thumbnailUrl
+          });
+        }
+
+        if ((video.views || 0) > 0) {
+          items.push({
+            type: "views",
+            videoId: video.videoId,
+            creatorName: video.creatorName,
+            message: `${video.creatorName} uploaded "${video.title}" and it has ${formatNumber(video.views)} views`,
+            createdAt: video.createdAt,
+            thumbnailUrl: video.thumbnailUrl
+          });
+        }
+      });
+
+      return items
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 12);
+    }
+
+    function renderNotifications() {
+      const items = buildNotifications();
+
+      if (!items.length) {
+        notificationsList.innerHTML = "<div class='notifications-empty'>No updates yet. Likes, comments, and new uploads will show up here.</div>";
+        return;
+      }
+
+      notificationsList.innerHTML = items
+        .map((item) => `
+          <button class="notification-item" type="button" data-notification-video="${escapeHtml(item.videoId)}">
+            <div class="notification-avatar">${escapeHtml(getInitials(item.creatorName))}</div>
+            <div>
+              <div class="notification-title">${escapeHtml(item.message)}</div>
+              <div class="notification-time">${escapeHtml(new Date(item.createdAt).toLocaleString())}</div>
+            </div>
+            <img class="notification-thumb" src="${escapeHtml(item.thumbnailUrl || "")}" alt="Notification thumbnail" onerror="this.style.display='none'" />
+          </button>
+        `)
+        .join("");
+
+      notificationsList.querySelectorAll("[data-notification-video]").forEach((button) => {
+        button.addEventListener("click", () => {
+          closeNotifications();
+          navigate({ view: "watch", videoId: button.dataset.notificationVideo, q: state.route.q });
+        });
+      });
+    }
+
+    function toggleNotifications() {
+      closeUserMenu();
+      if (notificationsPanel.hidden) {
+        renderNotifications();
+        notificationsPanel.hidden = false;
+      } else {
+        notificationsPanel.hidden = true;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function formatNumber(value) {
+      return new Intl.NumberFormat().format(Number(value) || 0);
+    }
+
+    function formatDuration(seconds) {
+      const totalSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const remainingSeconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+      }
+
+      return `${remainingSeconds}s`;
+    }
+
+    function createThumbnailDataUrl({ title, label, accentA, accentB }) {
+      const safeTitle = escapeHtml(title);
+      const safeLabel = escapeHtml(label);
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+          <defs>
+            <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="${accentA}"/>
+              <stop offset="100%" stop-color="${accentB}"/>
+            </linearGradient>
+          </defs>
+          <rect width="1280" height="720" fill="url(#bg)"/>
+          <circle cx="1040" cy="170" r="150" fill="rgba(255,255,255,0.16)"/>
+          <circle cx="180" cy="580" r="220" fill="rgba(0,0,0,0.18)"/>
+          <rect x="66" y="66" rx="28" ry="28" width="170" height="52" fill="rgba(15,15,15,0.52)"/>
+          <text x="151" y="100" text-anchor="middle" fill="#ffffff" font-size="28" font-family="Arial, sans-serif" font-weight="700">${safeLabel}</text>
+          <text x="70" y="515" fill="#ffffff" font-size="72" font-family="Arial, sans-serif" font-weight="800">${safeTitle}</text>
+          <polygon points="1110,540 1110,650 1210,595" fill="#ffffff"/>
+        </svg>
+      `.trim();
+
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
+    function normalizeVideoForDisplay(video, index = 0) {
+      const template = demoVideoTemplates[index % demoVideoTemplates.length];
+      return {
+        ...video,
+        title: video.title || template.title,
+        description: video.description || template.description,
+        thumbnailUrl: video.thumbnailUrl || createThumbnailDataUrl(template)
+      };
+    }
+
+    function getDisplayFeed(videos) {
+      if (!videos.length) {
+        return [];
+      }
+
+      return videos.map((video, index) => normalizeVideoForDisplay(video, index));
+    }
+
+    function formatTagLabel(tag) {
+      return String(tag || "")
+        .split(/[\s-]+/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    }
+
+    function getInitials(value) {
+      return String(value || "VC")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase();
+    }
+
+    function buildCreatorSummary(videos) {
+      const map = new Map();
+
+      videos.forEach((video) => {
+        const key = video.creatorName || "Unknown Creator";
+        const existing = map.get(key) || {
+          creatorName: key,
+          videos: 0,
+          views: 0
+        };
+
+        existing.videos += 1;
+        existing.views += Number(video.views) || 0;
+        map.set(key, existing);
+      });
+
+      return Array.from(map.values()).sort((a, b) => b.views - a.views || b.videos - a.videos);
+    }
+
+    function updateNavState() {
+      document.querySelectorAll("[data-nav-view]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.navView === state.route.view);
+      });
+    }
+
+    function renderCreatorRail() {
+      if (!state.creators.length) {
+        creatorRail.innerHTML = "<div class='muted'>No creators yet.</div>";
+        return;
+      }
+
+      creatorRail.innerHTML = state.creators
+        .slice(0, 8)
+        .map((creator) => `
+          <button class="creator-chip" type="button" data-creator-name="${escapeHtml(creator.creatorName)}">
+            <span class="creator-avatar">${escapeHtml(getInitials(creator.creatorName))}</span>
+            <span class="creator-copy">
+              <strong>${escapeHtml(creator.creatorName)}</strong>
+              <span>${formatNumber(creator.videos)} videos</span>
+            </span>
+          </button>
+        `)
+        .join("");
+
+      creatorRail.querySelectorAll("[data-creator-name]").forEach((button) => {
+        button.addEventListener("click", () => {
+          navigate({
+            view: "creator",
+            creatorName: button.dataset.creatorName
+          });
+        });
+      });
+    }
+
+    function renderTopicChips() {
+      const defaults = [
+        "All",
+        "Music",
+        "Gaming",
+        "Live",
+        "Podcasts",
+        "Comedy",
+        "Web series",
+        "Food",
+        "Sketch comedy",
+        "Tech",
+        "Trailers"
+      ];
+      const creatorTopics = state.creators.slice(0, 5).map((creator) => creator.creatorName);
+      const tagTopics = state.feed
+        .flatMap((video) => (Array.isArray(video.tags) ? video.tags : []))
+        .map(formatTagLabel);
+      const chips = Array.from(new Set([...defaults, ...tagTopics, ...creatorTopics]));
+      const activeQuery = (state.route.q || "").trim().toLowerCase();
+
+      topicChips.innerHTML = chips
+        .map((chip, index) => `
+          <button class="topic-chip${(index === 0 && !state.route.q) || chip.toLowerCase() === activeQuery ? " active" : ""}" type="button" data-topic="${escapeHtml(chip)}">
+            ${escapeHtml(chip)}
+          </button>
+        `)
+        .join("");
+
+      topicChips.querySelectorAll("[data-topic]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = button.dataset.topic;
+          navigate({
+            view: "home",
+            q: value === "All" ? "" : value
+          });
+        });
+      });
+    }
+
+    function destroyPlayer() {
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+    }
+
+    function clearRefreshTimer() {
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+    }
+
+    function clearAnalyticsInterval() {
+      if (analyticsInterval) {
+        window.clearInterval(analyticsInterval);
+        analyticsInterval = null;
+      }
+    }
+
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      let data = null;
+
+      try {
+        data = await response.json();
+      } catch (error) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data && data.error ? data.error : "Request failed.");
+      }
+
+      return data;
+    }
+
+    async function loadFeed() {
+      const data = await fetchJson("/api/videos/feed");
+      state.feed = data.videos || [];
+      state.creators = buildCreatorSummary(state.feed);
+      renderCreatorRail();
+      applySearch(state.route.q || "");
+    }
+
+    function applySearch(query) {
+      const normalizedQuery = (query || "").trim().toLowerCase();
+      searchInput.value = query || "";
+
+      if (!normalizedQuery) {
+        state.filteredFeed = [...state.feed];
+        return;
+      }
+
+      state.filteredFeed = state.feed.filter((video) => {
+        return [video.title, video.creatorName, video.description, ...(Array.isArray(video.tags) ? video.tags : [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      });
+    }
+
+    function navigate(nextRoute, options = {}) {
+      state.route = {
+        view: nextRoute.view || "home",
+        videoId: nextRoute.videoId || "",
+        creatorName: nextRoute.creatorName || "",
+        q: nextRoute.q || ""
+      };
+
+      const params = new URLSearchParams();
+      if (state.route.view && state.route.view !== "home") {
+        params.set("view", state.route.view);
+      }
+      if (state.route.videoId) {
+        params.set("videoId", state.route.videoId);
+      }
+      if (state.route.creatorName) {
+        params.set("creatorName", state.route.creatorName);
+      }
+      if (state.route.q) {
+        params.set("q", state.route.q);
+      }
+
+      const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+
+      if (options.replace) {
+        window.history.replaceState({}, "", nextUrl);
+      } else {
+        window.history.pushState({}, "", nextUrl);
+      }
+
+      renderRoute();
+    }
+
+    function goHome() {
+      closeSidebarOverlay();
+      navigate({
+        view: "home",
+        videoId: "",
+        creatorName: "",
+        q: ""
+      });
+    }
+
+    function getFeaturedVideo() {
+      return state.filteredFeed[0] || state.feed[0] || null;
+    }
+
+    function renderVideoCard(video) {
+      const tags = Array.isArray(video.tags) ? video.tags.slice(0, 3) : [];
+
+      return `
+        <article class="video-card" data-watch-id="${escapeHtml(video.videoId)}" role="button" tabindex="0" aria-label="Play ${escapeHtml(video.title)}">
+          <img class="thumbnail" src="${escapeHtml(video.thumbnailUrl || "")}" alt="${escapeHtml(video.title)} thumbnail" onerror="this.style.display='none'" />
+          <div class="video-body">
+            <div class="channel-avatar">${escapeHtml(getInitials(video.creatorName))}</div>
+            <div class="video-copy">
+              <h3>${escapeHtml(video.title)}</h3>
+              <div class="video-meta">${escapeHtml(video.creatorName)}</div>
+              ${tags.length ? `<div class="video-meta">${tags.map((tag) => `#${escapeHtml(tag)}`).join(" ")}</div>` : ""}
+              <div class="video-meta">${formatNumber(video.views)} views • ${formatNumber(video.likes)} likes • ${video.status === "ready" ? "ready" : escapeHtml(video.status)}</div>
+            </div>
+          </div>
+        </article>
+      `;
+    }
+
+    function attachVideoCardEvents(root) {
+      root.querySelectorAll("[data-watch-id]").forEach((card) => {
+        card.addEventListener("click", () => {
+          navigate({ view: "watch", videoId: card.dataset.watchId, q: state.route.q });
+        });
+
+        card.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            navigate({ view: "watch", videoId: card.dataset.watchId, q: state.route.q });
+          }
+        });
+      });
+    }
+
+    function renderHome() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+
+      const displayFeed = getDisplayFeed(state.filteredFeed);
+      renderTopicChips();
+
+      if (!displayFeed.length) {
+        content.innerHTML = `
+          <section class="panel">
+            <div class="empty-state">No videos match this search yet.</div>
+          </section>
+        `;
+        return;
+      }
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="section-title">
+            <div>
+              <h2>Recommended</h2>
+              <p class="muted">Tap any video to open the watch page.</p>
+            </div>
+          </div>
+          <div class="video-grid">
+            ${displayFeed.map(renderVideoCard).join("")}
+          </div>
+        </section>
+      `;
+
+      attachVideoCardEvents(content);
+    }
+
+    async function incrementView(videoId) {
+      if (!videoId) {
+        return;
+      }
+
+      try {
+        await fetch(`/api/videos/${videoId}/view`, { method: "POST" });
+      } catch (error) {
+        console.error("View increment failed.", error);
+      }
+    }
+
+    async function reportWatchAnalytics(payload) {
+      if (!currentVideoId) {
+        return;
+      }
+
+      try {
+        await fetch(`/api/videos/${currentVideoId}/analytics/watch`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch (error) {
+        console.error("Analytics reporting failed.", error);
+      }
+    }
+
+    function captureWatchProgress(video, options = {}) {
+      if (!video || video.paused || video.ended || Number.isNaN(video.currentTime)) {
+        return;
+      }
+
+      const watchedSeconds = Math.floor(video.currentTime);
+      const delta = watchedSeconds - reportedWatchSeconds;
+
+      if (delta >= 10) {
+        reportedWatchSeconds = watchedSeconds;
+        reportWatchAnalytics({ watchedSeconds: delta, completed: false });
+      }
+
+      if (options.completed && !completionReported) {
+        completionReported = true;
+        reportWatchAnalytics({ watchedSeconds: 0, completed: true });
+      }
+    }
+
+    function bindAnalytics(video) {
+      clearAnalyticsInterval();
+      reportedWatchSeconds = 0;
+      completionReported = false;
+
+      analyticsInterval = window.setInterval(() => {
+        captureWatchProgress(video);
+      }, 10000);
+
+      video.addEventListener("ended", () => {
+        captureWatchProgress(video, { completed: true });
+      });
+    }
+
+    function renderAudioToggleState(video, button) {
+      if (!video || !button) {
+        return;
+      }
+
+      const muted = Boolean(video.muted);
+      button.classList.toggle("muted", muted);
+      button.setAttribute("aria-label", muted ? "Unmute video" : "Mute video");
+      button.setAttribute("title", muted ? "Unmute video" : "Mute video");
+
+      const icon = muted
+        ? `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4z"></path>
+            <path d="m16 9 5 6"></path>
+            <path d="m21 9-5 6"></path>
+          </svg>
+        `
+        : `
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 5 6 9H3v6h3l5 4z"></path>
+            <path d="M16 9a5 5 0 0 1 0 6"></path>
+            <path d="M18.5 6.5a9 9 0 0 1 0 11"></path>
+          </svg>
+        `;
+
+      button.innerHTML = `
+        ${icon}
+        <span class="player-audio-toggle-track">
+          <span class="player-audio-toggle-thumb"></span>
+        </span>
+      `;
+    }
+
+    function attachStreamToPlayer(streamUrl) {
+      const video = document.getElementById("watchPlayer");
+      const audioToggleButton = document.getElementById("playerAudioToggle");
+
+      if (!video) {
+        return;
+      }
+
+      destroyPlayer();
+      video.playsInline = true;
+
+      const syncAudioButton = () => {
+        renderAudioToggleState(video, audioToggleButton);
+      };
+
+      if (audioToggleButton) {
+        audioToggleButton.addEventListener("click", async () => {
+          video.muted = !video.muted;
+          syncAudioButton();
+
+          try {
+            await video.play();
+          } catch (error) {
+            video.muted = true;
+            syncAudioButton();
+          }
+        });
+      }
+
+      const attemptAutoplay = async () => {
+        try {
+          video.muted = false;
+          await video.play();
+        } catch (error) {
+          try {
+            video.muted = true;
+            await video.play();
+          } catch (playError) {
+            video.controls = true;
+          }
+        }
+
+        syncAudioButton();
+      };
+
+      video.addEventListener("volumechange", syncAudioButton);
+
+      if (video.canPlayType(HLS_MIME_TYPE)) {
+        video.src = streamUrl;
+        video.addEventListener("loadedmetadata", () => {
+          attemptAutoplay();
+        }, { once: true });
+        bindAnalytics(video);
+        return;
+      }
+
+      if (window.Hls && window.Hls.isSupported()) {
+        hlsInstance = new window.Hls({ enableWorker: true });
+        hlsInstance.loadSource(streamUrl);
+        hlsInstance.attachMedia(video);
+        video.addEventListener("loadedmetadata", () => {
+          attemptAutoplay();
+        }, { once: true });
+        bindAnalytics(video);
+      }
+
+      syncAudioButton();
+    }
+
+    function renderComments(comments) {
+      if (!comments || !comments.length) {
+        return "<div class='empty-state'>No comments yet. Start the conversation.</div>";
+      }
+
+      return comments
+        .map((comment) => `
+          <div class="comment-card">
+            <strong>${escapeHtml(comment.authorName)}</strong>
+            <div class="muted">${escapeHtml(new Date(comment.createdAt).toLocaleString())}</div>
+            <p>${escapeHtml(comment.text)}</p>
+          </div>
+        `)
+        .join("");
+    }
+
+    function getRecommendedVideos(video) {
+      return state.feed.filter((item) => item.videoId !== video.videoId).slice(0, 6);
+    }
+
+    async function renderWatchLegacy() {
+      updateNavState();
+      clearRefreshTimer();
+
+      if (!state.route.videoId) {
+        setStatus("Pick a video from the homepage to start watching.");
+        renderHome();
+        return;
+      }
+
+      setStatus("Loading video...");
+
+      try {
+        const data = await fetchJson(`/api/videos/${state.route.videoId}`);
+        const video = data.video;
+        const recommendations = getRecommendedVideos(video);
+        currentVideoId = video.videoId;
+
+        content.innerHTML = `
+          <section class="watch-layout">
+            <div class="panel">
+              <div class="player-stage">
+                ${
+                  video.status === "ready"
+                    ? `
+                      <video id="watchPlayer" controls poster="${escapeHtml(video.thumbnailUrl || "")}"></video>
+                      <button id="playerAudioToggle" class="player-audio-toggle muted" type="button" aria-label="Unmute video" title="Unmute video">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M11 5 6 9H3v6h3l5 4z"></path>
+                          <path d="m16 9 5 6"></path>
+                          <path d="m21 9-5 6"></path>
+                        </svg>
+                        <span class="player-audio-toggle-track">
+                          <span class="player-audio-toggle-thumb"></span>
+                        </span>
+                      </button>
+                    `
+                    : `
+                      <div style="padding:24px;">
+                        <img class="thumbnail" src="${escapeHtml(video.thumbnailUrl || "")}" alt="${escapeHtml(video.title)} thumbnail" onerror="this.style.display='none'" />
+                        <div class="status">${video.status === "processing" ? "This video is still processing. The page will refresh automatically." : "This video could not be processed. Try uploading it again."}</div>
+                      </div>
+                    `
+                }
+              </div>
+
+              <div style="margin-top:18px;">
+                <h1>${escapeHtml(video.title)}</h1>
+                <p class="muted">${escapeHtml(video.creatorName)} • ${formatNumber(video.views)} views • ${formatNumber(video.likes)} likes • ${formatNumber(video.commentsCount)} comments • ${escapeHtml(video.status)}</p>
+                <p class="muted">Watch time ${formatDuration(video.totalWatchTimeSeconds)} • Avg watch ${formatDuration(video.averageWatchTimeSeconds)} • Completed views ${formatNumber(video.completedViews)}</p>
+                <p>${escapeHtml(video.description || "No description yet.")}</p>
+                <div class="inline-actions">
+                  <button id="likeVideoButton" class="pill-button accent" type="button">Like video</button>
+                  <button id="openCreatorButton" class="pill-button" type="button">Creator page</button>
+                  ${
+                    video.status === "ready"
+                      ? `<a class="pill-button" href="${escapeHtml(video.streamUrl)}" target="_blank" rel="noreferrer">Open playlist</a>`
+                      : ""
+                  }
+                </div>
+              </div>
+            </div>
+
+            <aside class="panel">
+              <div class="section-title">
+                <div>
+                  <h2>Up Next</h2>
+                  <p class="muted">Keep the session on one page.</p>
+                </div>
+              </div>
+
+              ${
+                recommendations.length
+                  ? `<div class="mini-list">
+                      ${recommendations
+                        .map((item) => `
+                          <button class="mini-video" type="button" data-mini-watch="${escapeHtml(item.videoId)}">
+                            <img src="${escapeHtml(item.thumbnailUrl || "")}" alt="${escapeHtml(item.title)} thumbnail" onerror="this.style.display='none'" />
+                            <div>
+                              <strong>${escapeHtml(item.title)}</strong>
+                              <div class="muted">${escapeHtml(item.creatorName)}</div>
+                              <div class="muted">${formatNumber(item.views)} views • ${formatNumber(item.likes)} likes</div>
+                            </div>
+                          </button>
+                        `)
+                        .join("")}
+                    </div>`
+                  : `<div class="empty-state">No recommendations yet.</div>`
+              }
+            </aside>
+          </section>
+
+          <section class="watch-layout">
+            <div class="panel">
+              <h2>Comments</h2>
+              <form id="commentForm" class="form-grid">
+                <label>
+                  Your name
+                  <input id="commentAuthor" value="Aditya" />
+                </label>
+                <label>
+                  Comment
+                  <textarea id="commentText" placeholder="Share your thoughts about this video"></textarea>
+                </label>
+                <button class="upload-submit" type="submit">Post comment</button>
+              </form>
+            </div>
+
+            <aside class="panel">
+              <h2>Community</h2>
+              <div id="commentList">${renderComments(video.comments || [])}</div>
+            </aside>
+          </section>
+        `;
+
+        setStatus(video.status === "processing" ? "Video is still processing. Refreshing shortly..." : "");
+
+        if (video.status === "ready") {
+          attachStreamToPlayer(video.streamUrl);
+          await incrementView(video.videoId);
+        } else if (video.status === "processing") {
+          clearRefreshTimer();
+          refreshTimer = window.setTimeout(() => {
+            renderWatch();
+          }, 5000);
+        }
+
+        document.getElementById("likeVideoButton").addEventListener("click", async () => {
+          await fetchJson(`/api/videos/${video.videoId}/like`, { method: "POST" });
+          await refreshFeedAndStay();
+        });
+
+        document.getElementById("openCreatorButton").addEventListener("click", () => {
+          navigate({ view: "creator", creatorName: video.creatorName, q: state.route.q });
+        });
+
+        document.querySelectorAll("[data-mini-watch]").forEach((button) => {
+          button.addEventListener("click", () => {
+            navigate({ view: "watch", videoId: button.dataset.miniWatch, q: state.route.q });
+          });
+        });
+
+        document.getElementById("commentForm").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const authorName = document.getElementById("commentAuthor").value.trim();
+          const text = document.getElementById("commentText").value.trim();
+
+          if (!text) {
+            setStatus("Write a comment before posting.");
+            return;
+          }
+
+          await fetchJson(`/api/videos/${video.videoId}/comments`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ authorName, text })
+          });
+
+          setStatus("Comment added.");
+          await refreshFeedAndStay();
+        });
+      } catch (error) {
+        setStatus(error.message);
+        content.innerHTML = `<div class="empty-state">We couldn't load that video right now.</div>`;
+      }
+    }
+
+    async function renderWatch() {
+      updateNavState();
+      clearRefreshTimer();
+
+      if (!state.route.videoId) {
+        setStatus("Pick a video from the homepage to start watching.");
+        renderHome();
+        return;
+      }
+
+      setStatus("Loading video...");
+
+      try {
+        const data = await fetchJson(`/api/videos/${state.route.videoId}`);
+        const video = data.video;
+        const recommendations = getRecommendedVideos(video);
+        const alreadyLiked = hasLikedVideo(video.videoId);
+        currentVideoId = video.videoId;
+
+        content.innerHTML = `
+          <section class="watch-shell">
+            <div class="watch-main">
+              <div class="player-stage">
+                ${
+                  video.status === "ready"
+                    ? `<video id="watchPlayer" controls poster="${escapeHtml(video.thumbnailUrl || "")}"></video>`
+                    : `
+                      <div style="padding:24px;">
+                        <img class="thumbnail" src="${escapeHtml(video.thumbnailUrl || "")}" alt="${escapeHtml(video.title)} thumbnail" onerror="this.style.display='none'" />
+                        <div class="status">${video.status === "processing" ? "This video is still processing. The page will refresh automatically." : "This video could not be processed. Try uploading it again."}</div>
+                      </div>
+                    `
+                }
+              </div>
+
+              <div class="watch-details">
+                <h1 class="watch-title">${escapeHtml(video.title)}</h1>
+                <div class="watch-metadata">${formatNumber(video.views)} views • ${formatNumber(video.likes)} likes • ${formatNumber(video.commentsCount)} comments • ${escapeHtml(video.status)}</div>
+
+                <div class="watch-channel-row">
+                  <div class="watch-channel">
+                    <div class="watch-channel-avatar">${escapeHtml(getInitials(video.creatorName))}</div>
+                    <div class="watch-channel-copy">
+                      <strong>${escapeHtml(video.creatorName)}</strong>
+                      <span>Watch time ${formatDuration(video.totalWatchTimeSeconds)} • Avg watch ${formatDuration(video.averageWatchTimeSeconds)} • Completed ${formatNumber(video.completedViews)}</span>
+                    </div>
+                  </div>
+
+                  <div class="watch-actions">
+                    <button id="openCreatorButton" class="watch-pill primary" type="button">Subscribe</button>
+                    <div class="watch-action-group">
+                      <button id="likeVideoButton" class="watch-pill like-button${alreadyLiked ? " liked" : ""}" type="button" title="Single click to like, double click to unlike">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M14 10V5a3 3 0 0 0-3-3l-1 5-4 4v9h11a2 2 0 0 0 2-1.7l1-6.5A2 2 0 0 0 18 10z"></path>
+                          <path d="M6 11H3v9h3"></path>
+                        </svg>
+                        <span>${alreadyLiked ? "Liked" : formatNumber(video.likes)}</span>
+                      </button>
+                      <button class="watch-icon-pill" type="button" id="shareVideoButton">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path>
+                          <path d="M12 16V4"></path>
+                          <path d="m7 9 5-5 5 5"></path>
+                        </svg>
+                        <span>Share</span>
+                      </button>
+                      ${
+                        video.status === "ready"
+                          ? `<a class="watch-icon-pill" href="${escapeHtml(video.streamUrl)}" target="_blank" rel="noreferrer">
+                              <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <path d="M7 10l5 5 5-5"></path>
+                                <path d="M12 15V3"></path>
+                              </svg>
+                              <span>Download</span>
+                            </a>`
+                          : ""
+                      }
+                    </div>
+                  </div>
+                </div>
+
+                <div class="watch-description-card">
+                  <div class="watch-metadata">${escapeHtml(video.creatorName)} • ${new Date(video.createdAt).toLocaleDateString()}</div>
+                  <p>${escapeHtml(video.description || "No description yet.")}</p>
+                </div>
+
+                <div class="watch-comments-card">
+                  <h2>Comments</h2>
+                  <form id="commentForm" class="form-grid">
+                    <label>
+                      Your name
+                      <input id="commentAuthor" value="Aditya" />
+                    </label>
+                    <label>
+                      Comment
+                      <textarea id="commentText" placeholder="Share your thoughts about this video"></textarea>
+                    </label>
+                    <button class="upload-submit" type="submit">Post comment</button>
+                  </form>
+                  <div id="commentList">${renderComments(video.comments || [])}</div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="watch-rail">
+              <div class="watch-rail-header">
+                <button class="watch-filter-chip active" type="button">All</button>
+                <button class="watch-filter-chip" type="button">Music</button>
+                <button class="watch-filter-chip" type="button">Gaming</button>
+                <button class="watch-filter-chip" type="button">Comedy</button>
+                <button class="watch-filter-chip" type="button">Food</button>
+              </div>
+
+              ${
+                recommendations.length
+                  ? `<div class="mini-list">
+                      ${recommendations
+                        .map((item) => `
+                          <button class="mini-video" type="button" data-mini-watch="${escapeHtml(item.videoId)}">
+                            <img src="${escapeHtml(item.thumbnailUrl || "")}" alt="${escapeHtml(item.title)} thumbnail" onerror="this.style.display='none'" />
+                            <div class="mini-video-copy">
+                              <strong>${escapeHtml(item.title)}</strong>
+                              <div class="muted">${escapeHtml(item.creatorName)}</div>
+                              <div class="muted">${formatNumber(item.views)} views • ${formatNumber(item.likes)} likes</div>
+                            </div>
+                            <div class="mini-video-more">⋮</div>
+                          </button>
+                        `)
+                        .join("")}
+                    </div>`
+                  : `<div class="empty-state">No recommendations yet.</div>`
+              }
+            </aside>
+          </section>
+        `;
+
+        setStatus(video.status === "processing" ? "Video is still processing. Refreshing shortly..." : "");
+
+        if (video.status === "ready") {
+          attachStreamToPlayer(video.streamUrl);
+          await incrementView(video.videoId);
+        } else if (video.status === "processing") {
+          clearRefreshTimer();
+          refreshTimer = window.setTimeout(() => {
+            renderWatch();
+          }, 5000);
+        }
+
+        const likeVideoButton = document.getElementById("likeVideoButton");
+        const likeButtonLabel = likeVideoButton.querySelector("span");
+        let likeClickTimer = null;
+
+        likeVideoButton.addEventListener("click", () => {
+          if (likeClickTimer) {
+            window.clearTimeout(likeClickTimer);
+          }
+
+          likeClickTimer = window.setTimeout(async () => {
+            likeClickTimer = null;
+
+            if (hasLikedVideo(video.videoId)) {
+              setStatus("Double-click to unlike this video.");
+              return;
+            }
+
+            await fetchJson(`/api/videos/${video.videoId}/like`, { method: "POST" });
+            rememberLikedVideo(video.videoId);
+            likeVideoButton.classList.add("liked");
+            likeButtonLabel.textContent = "Liked";
+            setStatus("Like saved.");
+            await refreshFeedAndStay();
+          }, 220);
+        });
+
+        likeVideoButton.addEventListener("dblclick", async (event) => {
+          event.preventDefault();
+
+          if (likeClickTimer) {
+            window.clearTimeout(likeClickTimer);
+            likeClickTimer = null;
+          }
+
+          if (!hasLikedVideo(video.videoId)) {
+            setStatus("Like the video first, then double-click to unlike it.");
+            return;
+          }
+
+          await fetchJson(`/api/videos/${video.videoId}/unlike`, { method: "POST" });
+          forgetLikedVideo(video.videoId);
+          likeVideoButton.classList.remove("liked");
+          likeButtonLabel.textContent = formatNumber(Math.max(0, Number(video.likes || 0)));
+          setStatus("Like removed.");
+          await refreshFeedAndStay();
+        });
+
+        document.getElementById("openCreatorButton").addEventListener("click", () => {
+          navigate({ view: "creator", creatorName: video.creatorName, q: state.route.q });
+        });
+
+        document.getElementById("shareVideoButton").addEventListener("click", async () => {
+          const shareUrl = `${window.location.origin}${window.location.pathname}?view=watch&videoId=${encodeURIComponent(video.videoId)}`;
+
+          try {
+            if (navigator.share) {
+              await navigator.share({ title: video.title, url: shareUrl });
+            } else if (navigator.clipboard?.writeText) {
+              await navigator.clipboard.writeText(shareUrl);
+              setStatus("Watch link copied.");
+            } else {
+              setStatus(shareUrl);
+            }
+          } catch (error) {
+            setStatus("Share canceled.");
+          }
+        });
+
+        document.querySelectorAll("[data-mini-watch]").forEach((button) => {
+          button.addEventListener("click", () => {
+            navigate({ view: "watch", videoId: button.dataset.miniWatch, q: state.route.q });
+          });
+        });
+
+        document.getElementById("commentForm").addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const authorName = document.getElementById("commentAuthor").value.trim();
+          const text = document.getElementById("commentText").value.trim();
+
+          if (!text) {
+            setStatus("Write a comment before posting.");
+            return;
+          }
+
+          await fetchJson(`/api/videos/${video.videoId}/comments`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ authorName, text })
+          });
+
+          setStatus("Comment added.");
+          await refreshFeedAndStay();
+        });
+      } catch (error) {
+        setStatus(error.message);
+        content.innerHTML = `<div class="empty-state">We couldn't load that video right now.</div>`;
+      }
+    }
+
+    async function renderCreator() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+
+      const fallbackCreator = state.route.creatorName || (state.creators[0] ? state.creators[0].creatorName : "");
+      content.innerHTML = `
+        <section class="panel">
+          <h1>Creator Studio</h1>
+          <p class="muted">Check creator analytics, video performance, and direct watch links without leaving the main app.</p>
+          <div class="form-grid">
+            <label>
+              Creator name
+              <input id="creatorStudioInput" value="${escapeHtml(fallbackCreator)}" placeholder="Studio North" />
+            </label>
+            <button id="creatorStudioLoad" class="upload-submit" type="button">Load creator page</button>
+          </div>
+        </section>
+        <section id="creatorStudioResults"></section>
+      `;
+
+      const input = document.getElementById("creatorStudioInput");
+      const loadButton = document.getElementById("creatorStudioLoad");
+      const results = document.getElementById("creatorStudioResults");
+
+      const loadDashboard = async () => {
+        const creatorName = input.value.trim();
+
+        if (!creatorName) {
+          setStatus("Enter a creator name first.");
+          return;
+        }
+
+        setStatus("Loading creator dashboard...");
+
+        try {
+          const data = await fetchJson(`/api/videos/dashboard?creatorName=${encodeURIComponent(creatorName)}`);
+
+          results.innerHTML = `
+            <section class="panel">
+              <div class="section-title">
+                <div>
+                  <h2>${escapeHtml(data.creatorName)} Dashboard</h2>
+                  <p class="muted">${formatNumber(data.videos.length)} uploaded video(s)</p>
+                </div>
+              </div>
+
+              <div class="dashboard-grid">
+                <div class="stat-card"><span>Videos</span><strong>${formatNumber(data.totals.videos)}</strong></div>
+                <div class="stat-card"><span>Views</span><strong>${formatNumber(data.totals.views)}</strong></div>
+                <div class="stat-card"><span>Likes</span><strong>${formatNumber(data.totals.likes)}</strong></div>
+                <div class="stat-card"><span>Watch Time</span><strong>${formatDuration(data.totals.watchTimeSeconds)}</strong></div>
+                <div class="stat-card"><span>Completed</span><strong>${formatNumber(data.totals.completedViews)}</strong></div>
+                <div class="stat-card"><span>Comments</span><strong>${formatNumber(data.totals.comments)}</strong></div>
+              </div>
+            </section>
+
+            <section class="panel" style="margin-top:20px;">
+              <h2>Videos</h2>
+              ${
+                data.videos.length
+                  ? `<div class="video-grid">${getDisplayFeed(data.videos, Math.max(3, data.videos.length)).map(renderVideoCard).join("")}</div>`
+                  : `<div class="empty-state">This creator has no videos yet.</div>`
+              }
+            </section>
+          `;
+
+          attachVideoCardEvents(results);
+          setStatus("");
+          if (state.route.creatorName !== creatorName || state.route.view !== "creator") {
+            navigate({ view: "creator", creatorName, q: state.route.q }, { replace: true });
+          }
+        } catch (error) {
+          results.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+          setStatus(error.message);
+        }
+      };
+
+      loadButton.addEventListener("click", loadDashboard);
+
+      if (fallbackCreator) {
+        loadDashboard();
+      } else {
+        results.innerHTML = "<div class='empty-state'>No creator data yet. Upload a video first.</div>";
+      }
+    }
+
+    function renderUserPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      const creatorName = getDefaultCreatorName();
+
+      content.innerHTML = `
+        <section class="panel" style="padding: 0;">
+          <div style="background: linear-gradient(135deg, #1f2937, #111827); border-radius: 24px; padding: 28px;">
+            <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+              <div style="width:88px; height:88px; border-radius:999px; overflow:hidden; flex-shrink:0;">
+                <img src="/client/vibecast-logo.png" alt="Profile" style="width:100%; height:100%; object-fit:cover; display:block;" />
+              </div>
+              <div>
+                <h1 style="margin:0 0 8px;">Vinaynagasai</h1>
+                <div class="muted">@VinayVallabhaneni1711 • Creator</div>
+                <div class="inline-actions">
+                  <button id="userPageChannelButton" class="pill-button" type="button">Open creator studio</button>
+                  <button id="userPageUploadButton" class="pill-button accent" type="button">Upload video</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 12px;">
+          <div class="dashboard-grid">
+            <div class="stat-card"><span>Uploads</span><strong>Quick</strong></div>
+            <div class="stat-card"><span>Access</span><strong>Studio</strong></div>
+            <div class="stat-card"><span>Brand</span><strong>Vibecast</strong></div>
+          </div>
+        </section>
+
+        <section class="panel" style="margin-top: 18px;">
+          <div class="section-title">
+            <div>
+              <h2>Creator shortcuts</h2>
+              <p class="muted">Everything important is grouped here now.</p>
+            </div>
+          </div>
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Upload a new video</h3>
+              <p class="muted">Post directly into the home feed and open the watch page once processing starts.</p>
+              <div class="card-actions">
+                <button id="userCardUploadButton" class="primary" type="button">Upload</button>
+              </div>
+            </article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Open creator studio</h3>
+              <p class="muted">See analytics, views, likes, comments, and creator video performance.</p>
+              <div class="card-actions">
+                <button id="userCardStudioButton" class="primary" type="button">Studio</button>
+              </div>
+            </article>
+          </div>
+        </section>
+      `;
+
+      document.getElementById("userPageUploadButton").addEventListener("click", () => {
+        navigate({ view: "upload", creatorName, q: state.route.q });
+      });
+
+      document.getElementById("userCardUploadButton").addEventListener("click", () => {
+        navigate({ view: "upload", creatorName, q: state.route.q });
+      });
+
+      document.getElementById("userPageChannelButton").addEventListener("click", () => {
+        navigate({ view: "creator", creatorName, q: state.route.q });
+      });
+
+      document.getElementById("userCardStudioButton").addEventListener("click", () => {
+        navigate({ view: "creator", creatorName, q: state.route.q });
+      });
+    }
+
+    function renderUpload() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+
+      content.innerHTML = `
+        <section class="upload-card">
+          <div class="eyebrow">Upload</div>
+          <h1>Publish into the main feed</h1>
+          <p class="muted">Upload an MP4, save metadata, transcode to HLS, and open it inside the same app once processing starts.</p>
+
+          <form id="uploadForm" class="form-grid">
+            <label>
+              Creator name
+              <input name="creatorName" value="${escapeHtml(state.route.creatorName || (state.creators[0] ? state.creators[0].creatorName : "Studio North"))}" />
+            </label>
+            <label>
+              Title
+              <input name="title" placeholder="Night drive cinematic" />
+            </label>
+            <label>
+              Description
+              <textarea name="description" placeholder="Tell viewers what this video is about"></textarea>
+            </label>
+            <label>
+              Tags
+              <input name="tags" placeholder="music, gaming, comedy" />
+            </label>
+            <label>
+              Video file
+              <input name="video" type="file" accept="video/*" required />
+            </label>
+            <label>
+              Thumbnail photo
+              <input name="thumbnail" type="file" accept="image/png,image/jpeg,image/webp,image/jpg" />
+            </label>
+            <button class="upload-submit" type="submit">Upload and transcode</button>
+          </form>
+
+          <div id="uploadStatus" class="status"></div>
+        </section>
+      `;
+
+      const form = document.getElementById("uploadForm");
+      const uploadStatus = document.getElementById("uploadStatus");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const formData = new FormData(form);
+        uploadStatus.textContent = "Uploading and transcoding...";
+
+        try {
+          const response = await fetch("/api/videos/upload", {
+            method: "POST",
+            body: formData
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Upload failed.");
+          }
+
+          uploadStatus.textContent = `Upload accepted.\nVideo ID: ${data.video.videoId}\nOpening watch page...`;
+          await loadFeed();
+          navigate({
+            view: "watch",
+            videoId: data.video.videoId,
+            creatorName: data.video.creatorName,
+            q: state.route.q
+          });
+        } catch (error) {
+          uploadStatus.textContent = error.message;
+        }
+      });
+    }
+
+    function renderSimplePreferencePage(config) {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      const preferences = getPreferences();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Settings</div>
+          <h1>${escapeHtml(config.title)}</h1>
+          <p class="muted">${escapeHtml(config.description)}</p>
+        </section>
+        <section class="panel" style="margin-top: 18px;">
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            ${config.options
+              .map((option) => `
+                <button class="video-card" type="button" data-pref-option="${escapeHtml(option)}" style="text-align:left; padding:22px;">
+                  <h3 style="margin:0 0 8px;">${escapeHtml(option)}</h3>
+                  <div class="video-meta">${preferences[config.key] === option ? "Currently selected" : "Tap to apply"}</div>
+                </button>
+              `)
+              .join("")}
+          </div>
+        </section>
+      `;
+
+      content.querySelectorAll("[data-pref-option]").forEach((button) => {
+        button.addEventListener("click", () => {
+          savePreferences({ [config.key]: button.dataset.prefOption });
+          applyTheme();
+          renderUserMenuLabels();
+          renderSimplePreferencePage(config);
+          setStatus(`${config.title} updated to ${button.dataset.prefOption}.`);
+        });
+      });
+    }
+
+    function renderAccountHub() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      const preferences = getPreferences();
+
+      content.innerHTML = `
+        <section class="panel" style="padding: 0;">
+          <div style="background: linear-gradient(135deg, #1f2937, #0f172a); border-radius: 24px; padding: 28px;">
+            <div style="display:flex; align-items:center; gap:18px; flex-wrap:wrap;">
+              <div style="width:88px; height:88px; border-radius:999px; overflow:hidden; flex-shrink:0;">
+                <img src="/client/vibecast-logo.png" alt="Profile" style="width:100%; height:100%; object-fit:cover; display:block;" />
+              </div>
+              <div>
+                <h1 style="margin:0 0 8px;">${escapeHtml(preferences.accountName)}</h1>
+                <div class="muted">${escapeHtml(preferences.handle)} • ${escapeHtml(preferences.location)} • ${escapeHtml(preferences.displayLanguage)}</div>
+                <div class="inline-actions">
+                  <button id="accountHubChannel" class="pill-button" type="button">View your channel</button>
+                  <button id="accountHubLanguage" class="pill-button" type="button">Language</button>
+                  <button id="accountHubLocation" class="pill-button accent" type="button">Location</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="panel" style="margin-top: 18px;">
+          <div class="section-title">
+            <div>
+              <h2>Account center</h2>
+              <p class="muted">A YouTube-style landing page for your profile, memberships, data, and playback preferences.</p>
+            </div>
+          </div>
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Google Account</h3>
+              <p class="muted">Profile identity, sign-in details, and your public account information.</p>
+              <div class="card-actions"><button id="accountHubGoogle" class="primary" type="button">Open</button></div>
+            </article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Purchases & memberships</h3>
+              <p class="muted">See active plans, premium features, and billing-style placeholders.</p>
+              <div class="card-actions"><button id="accountHubMemberships" class="primary" type="button">Open</button></div>
+            </article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Your data in Vibecast</h3>
+              <p class="muted">Liked videos, creator activity, preferences, and account-level privacy information.</p>
+              <div class="card-actions"><button id="accountHubData" class="primary" type="button">Open</button></div>
+            </article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Keyboard shortcuts</h3>
+              <p class="muted">Quick controls for search, navigation, and player movement.</p>
+              <div class="card-actions"><button id="accountHubShortcuts" class="primary" type="button">Open</button></div>
+            </article>
+          </div>
+        </section>
+      `;
+
+      document.getElementById("accountHubChannel").addEventListener("click", () => {
+        navigate({ view: "user", creatorName: getDefaultCreatorName() });
+      });
+      document.getElementById("accountHubLanguage").addEventListener("click", () => {
+        navigate({ view: "language" });
+      });
+      document.getElementById("accountHubLocation").addEventListener("click", () => {
+        navigate({ view: "location" });
+      });
+      document.getElementById("accountHubGoogle").addEventListener("click", () => {
+        navigate({ view: "account" });
+      });
+      document.getElementById("accountHubMemberships").addEventListener("click", () => {
+        navigate({ view: "memberships" });
+      });
+      document.getElementById("accountHubData").addEventListener("click", () => {
+        navigate({ view: "data" });
+      });
+      document.getElementById("accountHubShortcuts").addEventListener("click", () => {
+        navigate({ view: "shortcuts" });
+      });
+    }
+
+    function renderGoogleAccountPage() {
+      const preferences = getPreferences();
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Google Account</div>
+          <h1>${escapeHtml(preferences.accountName)}</h1>
+          <p class="muted">This landing page mirrors a YouTube-style account destination with identity, session, and preference shortcuts.</p>
+          <div class="dashboard-grid">
+            <div class="stat-card"><span>Handle</span><strong>${escapeHtml(preferences.handle)}</strong></div>
+            <div class="stat-card"><span>Language</span><strong>${escapeHtml(preferences.displayLanguage)}</strong></div>
+            <div class="stat-card"><span>Location</span><strong>${escapeHtml(preferences.location)}</strong></div>
+          </div>
+        </section>
+        <section class="panel" style="margin-top:18px;">
+          <div class="inline-actions">
+            <button id="googleAccountManageData" class="pill-button" type="button">Manage data</button>
+            <button id="googleAccountSwitch" class="pill-button" type="button">Switch account</button>
+            <button id="googleAccountSignOut" class="pill-button accent" type="button">Sign out</button>
+          </div>
+        </section>
+      `;
+
+      document.getElementById("googleAccountManageData").addEventListener("click", () => navigate({ view: "data" }));
+      document.getElementById("googleAccountSwitch").addEventListener("click", () => navigate({ view: "switch-account" }));
+      document.getElementById("googleAccountSignOut").addEventListener("click", () => navigate({ view: "signed-out" }));
+    }
+
+    function renderMembershipsPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Purchases</div>
+          <h1>Purchases and memberships</h1>
+          <p class="muted">A YouTube-style billing and benefits landing page for future premium plans, creator support, and subscriptions.</p>
+          <div class="dashboard-grid">
+            <div class="stat-card"><span>Premium</span><strong>Not active</strong></div>
+            <div class="stat-card"><span>Channel memberships</span><strong>0 active</strong></div>
+            <div class="stat-card"><span>Saved offers</span><strong>2 ideas</strong></div>
+          </div>
+        </section>
+        <section class="panel" style="margin-top:18px;">
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Premium preview</h3>
+              <p class="muted">Ad-free playback, background listening, and downloads can live here later.</p>
+            </article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;">
+              <h3 style="margin:0 0 10px;">Creator support</h3>
+              <p class="muted">Future memberships, paid perks, and subscriber-only features fit naturally here.</p>
+            </article>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderDataPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      const preferences = getPreferences();
+      const likedVideos = getLikedVideoIds();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Privacy</div>
+          <h1>Your data in Vibecast</h1>
+          <p class="muted">A central page for local app preferences, liked video history, account preferences, and future privacy tools.</p>
+          <div class="dashboard-grid">
+            <div class="stat-card"><span>Liked videos</span><strong>${formatNumber(likedVideos.length)}</strong></div>
+            <div class="stat-card"><span>Display language</span><strong>${escapeHtml(preferences.displayLanguage)}</strong></div>
+            <div class="stat-card"><span>Location</span><strong>${escapeHtml(preferences.location)}</strong></div>
+            <div class="stat-card"><span>Restricted mode</span><strong>${escapeHtml(preferences.restrictedMode)}</strong></div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderSwitchAccountPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      const accounts = [
+        { name: "Vinaynagasai", handle: "@VinayVallabhaneni1711", role: "Current account" },
+        { name: "Vibecast Studio", handle: "@vibecaststudio", role: "Brand account" },
+        { name: "Creator Sandbox", handle: "@creatorsandbox", role: "Testing account" }
+      ];
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Accounts</div>
+          <h1>Switch account</h1>
+          <p class="muted">Choose another identity the same way you would in YouTube’s account switcher.</p>
+        </section>
+        <section class="panel" style="margin-top:18px;">
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            ${accounts
+              .map((account) => `
+                <button class="video-card" type="button" data-switch-account="${escapeHtml(account.name)}" data-switch-handle="${escapeHtml(account.handle)}" style="text-align:left; padding:22px;">
+                  <h3 style="margin:0 0 8px;">${escapeHtml(account.name)}</h3>
+                  <div class="video-meta">${escapeHtml(account.handle)}</div>
+                  <div class="video-meta">${escapeHtml(account.role)}</div>
+                </button>
+              `)
+              .join("")}
+          </div>
+        </section>
+      `;
+
+      content.querySelectorAll("[data-switch-account]").forEach((button) => {
+        button.addEventListener("click", () => {
+          savePreferences({
+            accountName: button.dataset.switchAccount,
+            handle: button.dataset.switchHandle
+          });
+          renderUserMenuLabels();
+          setStatus(`Switched to ${button.dataset.switchAccount}.`);
+          navigate({ view: "account-hub" });
+        });
+      });
+    }
+
+    function renderSignedOutPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Session</div>
+          <h1>Signed out</h1>
+          <p class="muted">This is a landing state for sign out, similar to YouTube’s signed-out experience. Your local demo app stays available, but account-only actions can point back here.</p>
+          <div class="inline-actions">
+            <button id="signedOutReturnHome" class="pill-button" type="button">Go to home</button>
+            <button id="signedOutSignIn" class="pill-button accent" type="button">Sign in again</button>
+          </div>
+        </section>
+      `;
+
+      document.getElementById("signedOutReturnHome").addEventListener("click", () => goHome());
+      document.getElementById("signedOutSignIn").addEventListener("click", () => navigate({ view: "account-hub" }));
+    }
+
+    function renderKeyboardShortcutsPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Shortcuts</div>
+          <h1>Keyboard shortcuts</h1>
+          <p class="muted">Quick reference page for navigation and playback behavior.</p>
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Enter</h3><div class="video-meta">Open selected actions and submit search</div></article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Space</h3><div class="video-meta">Activate focused cards or buttons</div></article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Search box</h3><div class="video-meta">Type and press Enter to filter videos and tags</div></article>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderHelpPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Help</div>
+          <h1>Help center</h1>
+          <p class="muted">A support landing page for account questions, playback issues, uploads, and creator tools.</p>
+          <div class="video-grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Watching videos</h3><div class="video-meta">Playback, quality, and fullscreen help.</div></article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Uploading</h3><div class="video-meta">Tags, thumbnails, transcoding, and publishing help.</div></article>
+            <article class="video-card" style="background:#1a1a1a; border-radius:20px; padding:22px;"><h3 style="margin:0 0 8px;">Account & settings</h3><div class="video-meta">Language, location, appearance, and account center help.</div></article>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderFeedbackPage() {
+      updateNavState();
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+      currentVideoId = null;
+      closeUserMenu();
+
+      content.innerHTML = `
+        <section class="panel">
+          <div class="eyebrow">Feedback</div>
+          <h1>Send feedback</h1>
+          <p class="muted">Share product feedback, UI issues, or feature requests just like a YouTube feedback entry point.</p>
+          <form id="feedbackForm" class="form-grid">
+            <label>
+              Topic
+              <input name="topic" placeholder="Account menu, playback, uploads..." />
+            </label>
+            <label>
+              Details
+              <textarea name="details" placeholder="Tell us what happened or what you'd like improved"></textarea>
+            </label>
+            <button class="upload-submit" type="submit">Send feedback</button>
+          </form>
+          <div id="feedbackStatus" class="status"></div>
+        </section>
+      `;
+
+      document.getElementById("feedbackForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.getElementById("feedbackStatus").textContent = "Feedback saved locally for this demo. Thanks for the suggestion.";
+      });
+    }
+
+    async function refreshFeedAndStay() {
+      await loadFeed();
+      await renderRoute();
+    }
+
+    async function renderRoute() {
+      appShell.classList.toggle("watch-mode", state.route.view === "watch");
+      if (state.route.view !== "watch") {
+        closeSidebarOverlay();
+      }
+      updateNavState();
+      applySearch(state.route.q || "");
+
+      if (state.route.view === "watch") {
+        await renderWatch();
+        return;
+      }
+
+      if (state.route.view === "upload") {
+        renderUpload();
+        return;
+      }
+
+      if (state.route.view === "user") {
+        renderUserPage();
+        return;
+      }
+
+      if (state.route.view === "creator") {
+        await renderCreator();
+        return;
+      }
+
+      if (state.route.view === "account-hub") {
+        renderAccountHub();
+        return;
+      }
+
+      if (state.route.view === "account") {
+        renderGoogleAccountPage();
+        return;
+      }
+
+      if (state.route.view === "memberships") {
+        renderMembershipsPage();
+        return;
+      }
+
+      if (state.route.view === "data") {
+        renderDataPage();
+        return;
+      }
+
+      if (state.route.view === "switch-account") {
+        renderSwitchAccountPage();
+        return;
+      }
+
+      if (state.route.view === "signed-out") {
+        renderSignedOutPage();
+        return;
+      }
+
+      if (state.route.view === "shortcuts") {
+        renderKeyboardShortcutsPage();
+        return;
+      }
+
+      if (state.route.view === "help") {
+        renderHelpPage();
+        return;
+      }
+
+      if (state.route.view === "feedback") {
+        renderFeedbackPage();
+        return;
+      }
+
+      if (state.route.view === "language") {
+        renderSimplePreferencePage({
+          key: "displayLanguage",
+          title: "Display language",
+          description: "Choose the language used across your account surfaces and navigation labels.",
+          options: ["English", "Hindi", "Spanish", "French", "German"]
+        });
+        return;
+      }
+
+      if (state.route.view === "location") {
+        renderSimplePreferencePage({
+          key: "location",
+          title: "Location",
+          description: "Set a preferred region for recommendations, trends, and localized account behavior.",
+          options: ["India", "United States", "United Kingdom", "Canada", "Australia"]
+        });
+        return;
+      }
+
+      renderHome();
+    }
+
+    document.querySelectorAll("[data-nav-view]").forEach((button) => {
+      button.addEventListener("click", () => {
+        closeSidebarOverlay();
+
+        if (button.dataset.navView === "home") {
+          goHome();
+          return;
+        }
+
+        if (button.dataset.navView === "shorts") {
+          goHome();
+          return;
+        }
+
+        if (button.dataset.navView === "creator") {
+          navigate({
+            view: "creator",
+            creatorName: state.route.creatorName || (state.creators[0] ? state.creators[0].creatorName : ""),
+            q: state.route.q
+          });
+          return;
+        }
+
+        if (button.dataset.navView === "upload") {
+          navigate({ view: "user", creatorName: getDefaultCreatorName(), q: state.route.q });
+          return;
+        }
+
+        navigate({ view: button.dataset.navView, q: state.route.q });
+      });
+    });
+
+    brandHomeButton.addEventListener("click", () => {
+      goHome();
+    });
+
+    brandHomeButton.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        goHome();
+      }
+    });
+
+    topbarHomeButton.addEventListener("click", () => {
+      goHome();
+    });
+
+    menuToggleButton.addEventListener("click", () => {
+      if (state.route.view === "watch") {
+        toggleSidebarOverlay();
+        return;
+      }
+
+      goHome();
+    });
+
+    sidebarScrim.addEventListener("click", () => {
+      closeSidebarOverlay();
+    });
+
+    searchButton.addEventListener("click", () => {
+      navigate({
+        view: "home",
+        q: searchInput.value.trim()
+      });
+    });
+
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchButton.click();
+      }
+    });
+
+    surpriseButton.addEventListener("click", () => {
+      toggleNotifications();
+    });
+
+    topUploadButton.addEventListener("click", () => {
+      navigate({ view: "upload", q: state.route.q });
+    });
+
+    profileButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleUserMenu();
+    });
+
+    viewChannelButton.addEventListener("click", () => {
+      navigate({ view: "user", creatorName: getDefaultCreatorName(), q: state.route.q });
+    });
+
+    userMenuGoogleAccount.addEventListener("click", () => {
+      navigate({ view: "account" });
+    });
+
+    userMenuSwitchAccount.addEventListener("click", () => {
+      navigate({ view: "switch-account" });
+    });
+
+    userMenuSignOut.addEventListener("click", () => {
+      navigate({ view: "signed-out" });
+    });
+
+    userMenuStudio.addEventListener("click", () => {
+      navigate({ view: "creator", creatorName: getDefaultCreatorName(), q: state.route.q });
+    });
+
+    userMenuUpload.addEventListener("click", () => {
+      navigate({ view: "upload", creatorName: getDefaultCreatorName(), q: state.route.q });
+    });
+
+    userMenuPurchases.addEventListener("click", () => {
+      navigate({ view: "memberships" });
+    });
+
+    userMenuData.addEventListener("click", () => {
+      navigate({ view: "data" });
+    });
+
+    userMenuLanguage.addEventListener("click", () => {
+      openUserMenuSubmenu({
+        key: "displayLanguage",
+        title: "Display language",
+        options: ["English", "Hindi", "Spanish", "French", "German"]
+      }, userMenuLanguage);
+    });
+
+    userMenuLocation.addEventListener("click", () => {
+      openUserMenuSubmenu({
+        key: "location",
+        title: "Location",
+        options: ["India", "United States", "United Kingdom", "Canada", "Australia"]
+      }, userMenuLocation);
+    });
+
+    userMenuAppearance.addEventListener("click", () => {
+      openUserMenuSubmenu({
+        key: "theme",
+        title: "Appearance",
+        options: ["Dark", "Light"]
+      }, userMenuAppearance);
+    });
+
+    userMenuRestrictedMode.addEventListener("click", () => {
+      openUserMenuSubmenu({
+        key: "restrictedMode",
+        title: "Restricted mode",
+        options: ["Off", "On"]
+      }, userMenuRestrictedMode);
+    });
+
+    userMenuShortcuts.addEventListener("click", () => {
+      navigate({ view: "shortcuts" });
+    });
+
+    userMenuHelp.addEventListener("click", () => {
+      navigate({ view: "help" });
+    });
+
+    userMenuFeedback.addEventListener("click", () => {
+      navigate({ view: "feedback" });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!userMenu.hidden && !userMenu.contains(event.target) && !profileButton.contains(event.target)) {
+        closeUserMenu();
+      }
+      if (!userMenuSubmenu.hidden && !userMenuSubmenu.contains(event.target) && !userMenu.contains(event.target)) {
+        closeUserMenuSubmenu();
+      }
+      if (!notificationsPanel.hidden && !notificationsPanel.contains(event.target) && !surpriseButton.contains(event.target)) {
+        closeNotifications();
+      }
+    });
+
+    window.addEventListener("popstate", () => {
+      state.route = parseRoute();
+      renderRoute();
+    });
+
+    window.addEventListener("beforeunload", () => {
+      const video = document.getElementById("watchPlayer");
+      if (video) {
+        captureWatchProgress(video);
+      }
+      destroyPlayer();
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+    });
+
+    async function boot() {
+      setStatus("Loading Vibecast...");
+
+      try {
+        applyTheme();
+        renderUserMenuLabels();
+        await loadFeed();
+        state.route = parseRoute();
+        await renderRoute();
+        setStatus("");
+      } catch (error) {
+        setStatus(error.message);
+        content.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>

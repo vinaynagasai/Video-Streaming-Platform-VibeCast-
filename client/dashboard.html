@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Creator Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --border: #1f2937;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #1e293b 0%, var(--bg) 55%);
+      color: var(--text);
+      padding: 32px 20px 40px;
+    }
+
+    .shell {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: rgba(17, 24, 39, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 24px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+      margin-bottom: 20px;
+    }
+
+    .nav,
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .nav a,
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      background: var(--accent);
+      color: #06240f;
+    }
+
+    input {
+      width: 100%;
+      margin-top: 8px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: var(--text);
+    }
+
+    .stat {
+      min-width: 180px;
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 28px;
+      margin-top: 8px;
+    }
+
+    .video-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .video-item {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="panel">
+      <div class="nav">
+        <a href="/client/feed.html">Feed</a>
+        <a href="/client/upload.html">Upload</a>
+      </div>
+
+      <h1>Creator Dashboard</h1>
+      <p class="muted">View a creator's uploaded videos and engagement totals.</p>
+
+      <label>
+        Creator Name
+        <input id="creatorNameInput" placeholder="Studio North" />
+      </label>
+
+      <div class="nav" style="margin-top:16px;">
+        <button id="loadButton" type="button">Load Dashboard</button>
+      </div>
+    </div>
+
+    <div id="statsPanel" class="panel" hidden>
+      <h2 id="dashboardTitle"></h2>
+      <div id="stats" class="stats"></div>
+    </div>
+
+    <div id="videosPanel" class="panel" hidden>
+      <h2>Videos</h2>
+      <div id="videoList" class="video-list"></div>
+    </div>
+
+    <div id="status" class="muted"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const creatorNameInput = document.getElementById("creatorNameInput");
+    const loadButton = document.getElementById("loadButton");
+    const statsPanel = document.getElementById("statsPanel");
+    const videosPanel = document.getElementById("videosPanel");
+    const dashboardTitle = document.getElementById("dashboardTitle");
+    const stats = document.getElementById("stats");
+    const videoList = document.getElementById("videoList");
+    const status = document.getElementById("status");
+
+    const formatDuration = (seconds) => {
+      const totalSeconds = Math.max(0, Math.round(seconds || 0));
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const remainingSeconds = totalSeconds % 60;
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+      }
+
+      if (minutes > 0) {
+        return `${minutes}m ${remainingSeconds}s`;
+      }
+
+      return `${remainingSeconds}s`;
+    };
+
+    const renderStats = (totals) => {
+      stats.innerHTML = `
+        <div class="stat">Videos<strong>${totals.videos}</strong></div>
+        <div class="stat">Views<strong>${totals.views}</strong></div>
+        <div class="stat">Likes<strong>${totals.likes}</strong></div>
+        <div class="stat">Watch Time<strong>${formatDuration(totals.watchTimeSeconds)}</strong></div>
+        <div class="stat">Completed<strong>${totals.completedViews}</strong></div>
+        <div class="stat">Comments<strong>${totals.comments}</strong></div>
+      `;
+    };
+
+    const renderVideos = (videos) => {
+      videoList.innerHTML = "";
+      videos.forEach((video) => {
+        const item = document.createElement("div");
+        item.className = "video-item";
+        item.innerHTML = `
+          <h3>${video.title}</h3>
+          <p class="muted">${video.views} views | ${video.likes} likes | ${video.commentsCount} comments</p>
+          <p class="muted">Watch time: ${formatDuration(video.totalWatchTimeSeconds)} | Avg view: ${formatDuration(video.averageWatchTimeSeconds)} | Completed views: ${video.completedViews}</p>
+          <p>${video.description || "No description yet."}</p>
+          <div class="nav">
+            <a href="/client/watch.html?videoId=${encodeURIComponent(video.videoId)}">Watch</a>
+          </div>
+        `;
+        videoList.appendChild(item);
+      });
+    };
+
+    const loadDashboard = async () => {
+      const creatorName = creatorNameInput.value.trim();
+
+      if (!creatorName) {
+        status.textContent = "Enter a creator name first.";
+        return;
+      }
+
+      status.textContent = "Loading dashboard...";
+
+      try {
+        const response = await fetch(`/api/videos/dashboard?creatorName=${encodeURIComponent(creatorName)}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to load dashboard.");
+        }
+
+        dashboardTitle.textContent = `${data.creatorName} Dashboard`;
+        renderStats(data.totals);
+        renderVideos(data.videos);
+        statsPanel.hidden = false;
+        videosPanel.hidden = false;
+        status.textContent = `${data.videos.length} video(s) loaded.`;
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    };
+
+    loadButton.addEventListener("click", loadDashboard);
+
+    const initialCreator = params.get("creatorName");
+    if (initialCreator) {
+      creatorNameInput.value = initialCreator;
+      loadDashboard();
+    } else {
+      creatorNameInput.value = "Studio North";
+    }
+  </script>
+</body>
+</html>

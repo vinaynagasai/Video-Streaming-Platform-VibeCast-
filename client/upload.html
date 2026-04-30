@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Video</title>
+  <style>
+    :root {
+      --bg: #f4f4f5;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --accent: #ef4444;
+      --border: #e5e7eb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #fff7ed 0%, var(--bg) 100%);
+      color: var(--text);
+      padding: 32px 20px;
+    }
+
+    .shell {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 28px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 32px;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .nav a,
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 700;
+      font-size: 14px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .nav a {
+      background: #111827;
+      color: #fff;
+    }
+
+    button {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    form {
+      display: grid;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 14px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .status {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="nav">
+      <a href="/client/feed.html">Open Feed</a>
+      <a href="/client/dashboard.html">Open Dashboard</a>
+      <a href="/client/player.html">Open Player</a>
+    </div>
+
+    <h1>Upload A Video</h1>
+    <p>Upload an MP4, save metadata to MongoDB, transcode to HLS, and jump straight into playback.</p>
+
+    <form id="uploadForm">
+      <label>
+        Creator Name
+        <input id="creatorInput" name="creatorName" placeholder="Studio North" value="Studio North" />
+      </label>
+
+      <label>
+        Title
+        <input id="titleInput" name="title" placeholder="My first stream" />
+      </label>
+
+      <label>
+        Description
+        <textarea id="descriptionInput" name="description" placeholder="Write a short description"></textarea>
+      </label>
+
+      <label>
+        Video File
+        <input id="fileInput" name="video" type="file" accept="video/*" required />
+      </label>
+
+      <button type="submit">Upload And Transcode</button>
+    </form>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const status = document.getElementById("status");
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const formData = new FormData(form);
+      status.textContent = "Uploading and transcoding...";
+
+      try {
+        const response = await fetch("/api/videos/upload", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Upload failed.");
+        }
+
+        status.textContent = `Upload complete.\nVideo ID: ${data.video.videoId}\nStream URL: ${data.video.streamUrl}`;
+        window.location.href = `/client/watch.html?videoId=${encodeURIComponent(data.video.videoId)}`;
+      } catch (error) {
+        status.textContent = error.message;
+      }
+    });
+  </script>
+</body>
+</html>

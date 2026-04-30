@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Watch Video</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #eff6ff 0%, var(--bg) 100%);
+      color: var(--text);
+      padding: 24px 20px 40px;
+    }
+
+    .layout {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+      gap: 22px;
+    }
+
+    .panel {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: 0 24px 50px rgba(15, 23, 42, 0.06);
+    }
+
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .nav a,
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 11px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .nav a {
+      background: #111827;
+      color: #fff;
+    }
+
+    .action {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    h1,
+    h2 {
+      margin-top: 0;
+    }
+
+    .meta,
+    .status {
+      color: var(--muted);
+      white-space: pre-wrap;
+    }
+
+    .thumbnail {
+      width: 100%;
+      border-radius: 18px;
+      display: block;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      object-fit: cover;
+      background: #e2e8f0;
+      aspect-ratio: 16 / 9;
+    }
+
+    .comments {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .comment {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 12px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 14px;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel">
+      <div class="nav">
+        <a href="/client/feed.html">Feed</a>
+        <a href="/client/upload.html">Upload</a>
+        <a id="dashboardLink" href="/client/dashboard.html">Dashboard</a>
+      </div>
+
+      <div id="playerMount"></div>
+      <div id="videoDetails"></div>
+      <div id="watchStatus" class="status"></div>
+    </section>
+
+    <aside class="panel">
+      <h2>Comments</h2>
+      <form id="commentForm">
+        <label>
+          Your Name
+          <input id="authorNameInput" placeholder="Aditya" value="Aditya" />
+        </label>
+
+        <label>
+          Comment
+          <textarea id="commentTextInput" placeholder="What stood out in this video?"></textarea>
+        </label>
+
+        <button class="action" type="submit">Post Comment</button>
+      </form>
+
+      <div id="commentsList" class="comments"></div>
+    </aside>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const videoId = params.get("videoId");
+    const playerMount = document.getElementById("playerMount");
+    const videoDetails = document.getElementById("videoDetails");
+    const watchStatus = document.getElementById("watchStatus");
+    const commentsList = document.getElementById("commentsList");
+    const commentForm = document.getElementById("commentForm");
+    const authorNameInput = document.getElementById("authorNameInput");
+    const commentTextInput = document.getElementById("commentTextInput");
+    const dashboardLink = document.getElementById("dashboardLink");
+    let hls;
+    let viewRecorded = false;
+    let refreshTimer;
+    let analyticsInterval;
+    let reportedWatchSeconds = 0;
+    let completionReported = false;
+
+    const destroyHls = () => {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+    };
+
+    const clearRefreshTimer = () => {
+      if (refreshTimer) {
+        window.clearTimeout(refreshTimer);
+        refreshTimer = null;
+      }
+    };
+
+    const clearAnalyticsInterval = () => {
+      if (analyticsInterval) {
+        window.clearInterval(analyticsInterval);
+        analyticsInterval = null;
+      }
+    };
+
+    const reportWatchAnalytics = async (payload) => {
+      if (!videoId) {
+        return;
+      }
+
+      try {
+        await fetch(`/api/videos/${videoId}/analytics/watch`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch (error) {
+        console.error("Analytics reporting failed.", error);
+      }
+    };
+
+    const captureWatchProgress = (video, options = {}) => {
+      if (!video || video.paused || video.ended || Number.isNaN(video.currentTime)) {
+        return;
+      }
+
+      const watchedSeconds = Math.floor(video.currentTime);
+      const delta = watchedSeconds - reportedWatchSeconds;
+
+      if (delta >= 10) {
+        reportedWatchSeconds = watchedSeconds;
+        reportWatchAnalytics({ watchedSeconds: delta, completed: false });
+      }
+
+      if (options.completed && !completionReported) {
+        completionReported = true;
+        reportWatchAnalytics({ watchedSeconds: 0, completed: true });
+      }
+    };
+
+    const bindAnalytics = () => {
+      const video = document.getElementById("videoPlayer");
+
+      if (!video) {
+        return;
+      }
+
+      clearAnalyticsInterval();
+      reportedWatchSeconds = 0;
+      completionReported = false;
+
+      analyticsInterval = window.setInterval(() => {
+        captureWatchProgress(video);
+      }, 10000);
+
+      video.addEventListener("ended", () => {
+        captureWatchProgress(video, { completed: true });
+      });
+    };
+
+    const attachVideo = (streamUrl) => {
+      destroyHls();
+      playerMount.innerHTML = '<video id="videoPlayer" controls style="width:100%;border-radius:18px;background:#000;"></video>';
+      const video = document.getElementById("videoPlayer");
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = streamUrl;
+      } else if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls({ enableWorker: true });
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+      }
+
+      bindAnalytics();
+    };
+
+    const renderProcessingState = (video) => {
+      destroyHls();
+      clearAnalyticsInterval();
+      playerMount.innerHTML = `
+        <img class="thumbnail" src="${video.thumbnailUrl || ""}" alt="${video.title} thumbnail" onerror="this.style.display='none'" />
+        <div class="status">This video is still transcoding into HLS renditions. The page will refresh automatically.</div>
+      `;
+    };
+
+    const renderFailedState = (video) => {
+      destroyHls();
+      clearAnalyticsInterval();
+      playerMount.innerHTML = `
+        <img class="thumbnail" src="${video.thumbnailUrl || ""}" alt="${video.title} thumbnail" onerror="this.style.display='none'" />
+        <div class="status">This video could not be processed. Upload it again or inspect the server logs for FFmpeg errors.</div>
+      `;
+    };
+
+    const renderComments = (comments) => {
+      commentsList.innerHTML = "";
+
+      if (!comments || !comments.length) {
+        commentsList.innerHTML = "<p class='status'>No comments yet.</p>";
+        return;
+      }
+
+      comments.forEach((comment) => {
+        const item = document.createElement("div");
+        item.className = "comment";
+        item.innerHTML = `
+          <strong>${comment.authorName}</strong>
+          <div class="status">${new Date(comment.createdAt).toLocaleString()}</div>
+          <p>${comment.text}</p>
+        `;
+        commentsList.appendChild(item);
+      });
+    };
+
+    const renderVideo = (video) => {
+      clearRefreshTimer();
+      dashboardLink.href = `/client/dashboard.html?creatorName=${encodeURIComponent(video.creatorName)}`;
+
+      if (video.status === "ready") {
+        attachVideo(video.streamUrl);
+      } else if (video.status === "processing") {
+        renderProcessingState(video);
+      } else {
+        renderFailedState(video);
+      }
+
+      videoDetails.innerHTML = `
+        <h1>${video.title}</h1>
+        <p class="meta">${video.creatorName} | ${video.views} views | ${video.likes} likes | ${video.commentsCount} comments | status: ${video.status}</p>
+        <p class="meta">Watch time: ${Math.round(video.totalWatchTimeSeconds || 0)}s | Avg watch: ${Math.round(video.averageWatchTimeSeconds || 0)}s | Completed views: ${video.completedViews || 0}</p>
+        <p>${video.description || "No description yet."}</p>
+        <div class="nav">
+          <button id="likeButton" class="action" type="button">Like Video</button>
+          ${video.status === "ready" ? `<a href="${video.streamUrl}" target="_blank" rel="noreferrer">Open Playlist</a>` : ""}
+        </div>
+      `;
+
+      document.getElementById("likeButton").addEventListener("click", async () => {
+        const response = await fetch(`/api/videos/${video.videoId}/like`, { method: "POST" });
+        const data = await response.json();
+        if (response.ok) {
+          renderVideo(data.video);
+          renderComments(data.video.comments || video.comments || []);
+        }
+      });
+
+      renderComments(video.comments || []);
+    };
+
+    const loadVideo = async () => {
+      if (!videoId) {
+        watchStatus.textContent = "Missing ?videoId=...";
+        return;
+      }
+
+      watchStatus.textContent = "Loading video...";
+
+      try {
+        const response = await fetch(`/api/videos/${videoId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to load video.");
+        }
+
+        renderVideo(data.video);
+        watchStatus.textContent = "";
+
+        if (data.video.status === "processing") {
+          watchStatus.textContent = "Video is processing. Checking again in a few seconds...";
+          refreshTimer = window.setTimeout(loadVideo, 5000);
+          return;
+        }
+
+        if (data.video.status === "failed") {
+          watchStatus.textContent = "Video processing failed.";
+          return;
+        }
+
+        if (!viewRecorded) {
+          viewRecorded = true;
+          fetch(`/api/videos/${videoId}/view`, { method: "POST" }).catch(() => {});
+        }
+      } catch (error) {
+        watchStatus.textContent = error.message;
+      }
+    };
+
+    commentForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      try {
+        const response = await fetch(`/api/videos/${videoId}/comments`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            authorName: authorNameInput.value.trim(),
+            text: commentTextInput.value.trim()
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "Unable to add comment.");
+        }
+
+        commentTextInput.value = "";
+        renderVideo(data.video);
+        watchStatus.textContent = "Comment added.";
+      } catch (error) {
+        watchStatus.textContent = error.message;
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      const video = document.getElementById("videoPlayer");
+      if (video) {
+        captureWatchProgress(video);
+      }
+      clearRefreshTimer();
+      clearAnalyticsInterval();
+    });
+
+    loadVideo();
+  </script>
+</body>
+</html>

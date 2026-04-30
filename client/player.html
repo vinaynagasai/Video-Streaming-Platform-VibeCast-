@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Streaming Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --input: #0b1220;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: radial-gradient(circle at top, #1e293b 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+
+    .shell {
+      max-width: 980px;
+      margin: 0 auto;
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 32px;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      margin-top: 6px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      background: var(--input);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    button {
+      width: fit-content;
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #06240f;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    video {
+      width: 100%;
+      background: #000;
+      border-radius: 16px;
+      display: block;
+    }
+
+    .status {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    code {
+      color: #bfdbfe;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <h1>HLS Player</h1>
+    <p>Use a <code>videoId</code> or a full <code>master.m3u8</code> URL. Example videoId: <code>1777282345451</code></p>
+
+    <div class="controls">
+      <label>
+        Video ID
+        <input id="videoIdInput" placeholder="1777282345451" />
+      </label>
+
+      <label>
+        Stream URL
+        <input id="streamUrlInput" placeholder="http://localhost:5000/videos/1777282345451/master.m3u8" />
+      </label>
+
+      <button id="loadButton" type="button">Load Stream</button>
+    </div>
+
+    <video id="videoPlayer" controls></video>
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const video = document.getElementById("videoPlayer");
+    const videoIdInput = document.getElementById("videoIdInput");
+    const streamUrlInput = document.getElementById("streamUrlInput");
+    const loadButton = document.getElementById("loadButton");
+    const status = document.getElementById("status");
+    const params = new URLSearchParams(window.location.search);
+    const apiBaseUrl = `${window.location.origin}`;
+    let hls;
+
+    const setStatus = (message) => {
+      status.textContent = message;
+    };
+
+    const destroyHls = () => {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+    };
+
+    const attachStream = (url) => {
+      destroyHls();
+
+      if (!url) {
+        setStatus("Enter a videoId or stream URL.");
+        return;
+      }
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = url;
+        setStatus(`Loaded native HLS stream:\n${url}`);
+        return;
+      }
+
+      if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls({ enableWorker: true });
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        setStatus(`Loaded HLS.js stream:\n${url}`);
+        return;
+      }
+
+      setStatus("This browser does not support HLS playback.");
+    };
+
+    const loadByVideoId = async (videoId) => {
+      setStatus(`Fetching stream metadata for ${videoId}...`);
+      const response = await fetch(`${apiBaseUrl}/api/videos/${videoId}/stream`);
+
+      if (!response.ok) {
+        throw new Error("Stream metadata request failed.");
+      }
+
+      const data = await response.json();
+      streamUrlInput.value = data.streamUrl;
+      attachStream(data.streamUrl);
+    };
+
+    const loadFromInputs = async () => {
+      const videoId = videoIdInput.value.trim();
+      const streamUrl = streamUrlInput.value.trim();
+
+      try {
+        if (videoId) {
+          await loadByVideoId(videoId);
+          return;
+        }
+
+        attachStream(streamUrl);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    };
+
+    loadButton.addEventListener("click", loadFromInputs);
+
+    const initialVideoId = params.get("videoId");
+    const initialStreamUrl = params.get("src");
+
+    if (initialVideoId) {
+      videoIdInput.value = initialVideoId;
+      loadFromInputs();
+    } else if (initialStreamUrl) {
+      streamUrlInput.value = initialStreamUrl;
+      attachStream(initialStreamUrl);
+    } else {
+      videoIdInput.value = "1777282345451";
+    }
+  </script>
+</body>
+</html>
