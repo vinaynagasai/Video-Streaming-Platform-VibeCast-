@@ -878,6 +878,7 @@
       display: -webkit-box;
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
+      line-clamp: 2;        
       overflow: hidden;
     }
 
@@ -1764,10 +1765,17 @@ const apiBaseUrl = "https://vibecast-backend-yuam.onrender.com";
       appStatus.textContent = message || "";
     }
 
-    function getPreferences() {
- 
-        return { ...defaultPreferences };
-      }
+  function getPreferences() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(preferencesStorageKey));
+    if (stored && typeof stored === 'object') {
+      return { ...defaultPreferences, ...stored };
+    }
+  } catch (error) {
+    // ignore parse errors
+  }
+  return { ...defaultPreferences };
+}
     
     function savePreferences(patch) {
       const nextPreferences = {
@@ -2224,20 +2232,19 @@ const apiBaseUrl = "https://vibecast-backend-yuam.onrender.com";
       }
     }
 
-  async function fetchJson(endpoint, options) {
+async function fetchJson(endpoint, options) {
   const url = `${apiBaseUrl}${endpoint}`;
-
   const response = await fetch(url, options);
 
   let data = null;
   try {
     data = await response.json();
-  } catch {
+  } catch (e) {
     data = null;
   }
 
   if (!response.ok) {
-    throw new Error(data?.error || "Request failed.");
+    throw new Error((data && data.error) || "Request failed.");
   }
 
   return data;
