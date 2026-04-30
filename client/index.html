@@ -2387,7 +2387,9 @@
       }
 
       try {
-        await fetch(`/api/videos/${videoId}/view`, { method: "POST" });
+        await fetch(`https://vibecast-backend-yuam.onrender.com/api/videos/${videoId}/view`, {
+  method: "POST"
+});
       } catch (error) {
         console.error("View increment failed.", error);
       }
@@ -2399,11 +2401,11 @@
       }
 
       try {
-        await fetch(`/api/videos/${currentVideoId}/analytics/watch`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+        awaitfetch(`https://vibecast-backend-yuam.onrender.com/api/videos/${currentVideoId}/analytics/watch`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
           body: JSON.stringify(payload),
           keepalive: true
         });
@@ -3210,10 +3212,10 @@
         uploadStatus.textContent = "Uploading and transcoding...";
 
         try {
-          const response = await fetch("/api/videos/upload", {
-            method: "POST",
-            body: formData
-          });
+          const response = await fetch("https://vibecast-backend-yuam.onrender.com/api/videos/upload", {
+  method: "POST",
+  body: formData
+});
           const data = await response.json();
 
           if (!response.ok) {

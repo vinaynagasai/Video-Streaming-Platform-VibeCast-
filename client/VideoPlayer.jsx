@@ -25,31 +25,32 @@ const VideoPlayer = ({
 
     let isActive = true;
 
-    const loadStream = async () => {
-      try {
-        setError("");
-        const response = await fetch(`${apiBaseUrl}/api/videos/${videoId}/stream`);
-        let data = null;
+const loadStream = async () => {
+  try {
+    setError("");
 
-        try {
-          data = await response.json();
-        } catch (parseError) {
-          data = null;
-        }
+    const response = await fetch(`${apiBaseUrl}/api/videos/${videoId}/stream`);
 
-        if (!response.ok) {
-          throw new Error(data?.error || "Unable to load stream metadata.");
-        }
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
 
-        if (isActive) {
-          setStreamUrl(data.streamUrl);
-        }
-      } catch (fetchError) {
-        if (isActive) {
-          setError(fetchError.message);
-        }
-      }
-    };
+    if (!response.ok) {
+      throw new Error(data?.error || "Unable to load stream metadata.");
+    }
+
+    if (isActive) {
+      setStreamUrl(data.streamUrl);
+    }
+  } catch (fetchError) {
+    if (isActive) {
+      setError(fetchError.message);
+    }
+  }
+};
 
     loadStream();
 

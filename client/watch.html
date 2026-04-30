@@ -133,7 +133,12 @@
       }
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest">
+    
+  </script>
+  <script>
+  const apiBaseUrl = "https://vibecast-backend-yuam.onrender.com";
+</script>
 </head>
 <body>
   <div class="layout">
@@ -214,11 +219,12 @@
       }
 
       try {
-        await fetch(`/api/videos/${videoId}/analytics/watch`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+        await fetch(`${apiBaseUrl}/api/videos/${videoId}/analytics/watch`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
+
           body: JSON.stringify(payload),
           keepalive: true
         });
@@ -344,7 +350,7 @@
       `;
 
       document.getElementById("likeButton").addEventListener("click", async () => {
-        const response = await fetch(`/api/videos/${video.videoId}/like`, { method: "POST" });
+        const response = await fetch(`${apiBaseUrl}/api/videos/${video.videoId}/like`, { method: "POST" });
         const data = await response.json();
         if (response.ok) {
           renderVideo(data.video);
@@ -364,8 +370,8 @@
       watchStatus.textContent = "Loading video...";
 
       try {
-        const response = await fetch(`/api/videos/${videoId}`);
-        const data = await response.json();
+        const response = await fetch(`${apiBaseUrl}/api/videos/${videoId}`);
+const data = await response.json();
 
         if (!response.ok) {
           throw new Error(data.error || "Unable to load video.");
@@ -387,7 +393,7 @@
 
         if (!viewRecorded) {
           viewRecorded = true;
-          fetch(`/api/videos/${videoId}/view`, { method: "POST" }).catch(() => {});
+          fetch(`${apiBaseUrl}/api/videos/${videoId}/view`, { method: "POST" }).catch(() => {});
         }
       } catch (error) {
         watchStatus.textContent = error.message;
@@ -398,11 +404,11 @@
       event.preventDefault();
 
       try {
-        const response = await fetch(`/api/videos/${videoId}/comments`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
+        const response = await fetch(`${apiBaseUrl}/api/videos/${videoId}/comments`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json"
+  },
           body: JSON.stringify({
             authorName: authorNameInput.value.trim(),
             text: commentTextInput.value.trim()

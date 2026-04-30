@@ -161,10 +161,10 @@
       status.textContent = "Uploading and transcoding...";
 
       try {
-        const response = await fetch("/api/videos/upload", {
-          method: "POST",
-          body: formData
-        });
+        const response = await fetch(`${apiBaseUrl}/api/videos/upload`, {
+  method: "POST",
+  body: formData
+});
 
         const data = await response.json();
 

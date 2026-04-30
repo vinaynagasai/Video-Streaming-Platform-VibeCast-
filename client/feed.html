@@ -179,8 +179,9 @@
     const status = document.getElementById("status");
 
     const incrementViews = async (videoId) => {
-      await fetch(`/api/videos/${videoId}/view`, {
-        method: "POST"
+      await fetch(`https://vibecast-backend-yuam.onrender.com/api/videos/${videoId}/view`, {
+  method: "POST"
+
       });
     };
 
@@ -212,7 +213,7 @@
       status.textContent = "Loading videos...";
 
       try {
-        const response = await fetch("/api/videos/feed");
+        const response = await fetch("https://vibecast-backend-yuam.onrender.com/api/videos/feed");
         const data = await response.json();
 
         if (!response.ok) {
