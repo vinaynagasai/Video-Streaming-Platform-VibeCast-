@@ -2251,7 +2251,7 @@ async function fetchJson(endpoint, options) {
 }
 
     async function loadFeed() {
-      const data = await fetchJson("/api/videos/feed");
+      const data = await fetchJson("https://vibecast-backend-yuam.onrender.com/api/videos/feed");
       state.feed = data.videos || [];
       state.creators = buildCreatorSummary(state.feed);
       renderCreatorRail();
